@@ -1,183 +1,229 @@
 import { useEffect, useState } from "react";
 
+const cities = [
+  { name: "Toronto", country: "Canada", timeZone: "America/Toronto" },
+  { name: "New York", country: "United States", timeZone: "America/New_York" },
+  { name: "London", country: "United Kingdom", timeZone: "Europe/London" },
+  { name: "Dubai", country: "United Arab Emirates", timeZone: "Asia/Dubai" },
+  { name: "Tokyo", country: "Japan", timeZone: "Asia/Tokyo" },
+  { name: "Sydney", country: "Australia", timeZone: "Australia/Sydney" },
+];
+
+function getTime(timeZone) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(new Date());
+}
+
+function getDate(timeZone) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(new Date());
+}
+
 function App() {
-  const [time, setTime] = useState("");
+  const [tick, setTick] = useState(Date.now());
 
   useEffect(() => {
-    const updateClock = () => {
-      const now = new Date();
-
-      const formatted = now.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-
-      setTime(formatted);
-    };
-
-    updateClock();
-
-    const interval = setInterval(updateClock, 1000);
-
-    return () => clearInterval(interval);
+    const timer = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   return (
-    <div
-      style={{
-        background: "#071120",
-        minHeight: "100vh",
-        color: "white",
-        fontFamily: "Arial",
-      }}
-    >
-      {/* HEADER */}
-      <header
-        style={{
-          padding: "20px 40px",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          position: "sticky",
-          top: 0,
-          backdropFilter: "blur(10px)",
-          background: "rgba(7,17,32,0.85)",
-          zIndex: 100,
-        }}
-      >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: "1.5rem",
-            letterSpacing: "1px",
-          }}
-        >
-          WorldTick
-        </h2>
+    <div style={styles.page}>
+      <header style={styles.header}>
+        <div style={styles.logo}>WorldTick</div>
+        <nav style={styles.nav}>
+          <span>World Clock</span>
+          <span>Compare Time</span>
+          <span>Contact</span>
+        </nav>
       </header>
 
-      {/* HERO */}
-      <main
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          textAlign: "center",
-          padding: "80px 20px",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "4rem",
-            marginBottom: "10px",
-          }}
-        >
-          Global Time.
-          <br />
-          Simplified.
-        </h1>
-
-        <p
-          style={{
-            opacity: 0.7,
-            fontSize: "1.2rem",
-            maxWidth: "600px",
-            lineHeight: 1.6,
-          }}
-        >
-          Track live time across the world instantly with beautiful real-time
-          clocks and city comparisons.
-        </p>
-
-        {/* LIVE CLOCK */}
-        <div
-          style={{
-            marginTop: "50px",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            padding: "40px",
-            borderRadius: "24px",
-            boxShadow: "0 0 40px rgba(0,0,0,0.4)",
-            width: "100%",
-            maxWidth: "500px",
-          }}
-        >
-          <p
-            style={{
-              marginBottom: "10px",
-              opacity: 0.7,
-              fontSize: "1rem",
-            }}
-          >
-            Toronto
+      <main style={styles.main}>
+        <section style={styles.hero}>
+          <p style={styles.badge}>LIVE GLOBAL TIME</p>
+          <h1 style={styles.title}>
+            Global Time.
+            <br />
+            Simplified.
+          </h1>
+          <p style={styles.subtitle}>
+            Track live time across the world instantly with beautiful real-time
+            clocks and city comparisons.
           </p>
+        </section>
 
-          <h2
-            style={{
-              fontSize: "4rem",
-              margin: 0,
-              letterSpacing: "2px",
-            }}
-          >
-            {time}
-          </h2>
-        </div>
+        <section style={styles.featureCard}>
+          <p style={styles.cityLabel}>Toronto</p>
+          <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
+          <p style={styles.dateText}>{getDate("America/Toronto")}</p>
+        </section>
 
-        {/* SEARCH */}
         <input
-          type="text"
+          style={styles.search}
           placeholder="Search cities..."
-          style={{
-            marginTop: "40px",
-            padding: "18px 24px",
-            width: "100%",
-            maxWidth: "500px",
-            borderRadius: "16px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(255,255,255,0.05)",
-            color: "white",
-            fontSize: "1rem",
-            outline: "none",
-          }}
+          type="text"
         />
 
-        {/* POPULAR CITIES */}
-        <div
-          style={{
-            marginTop: "60px",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: "20px",
-            width: "100%",
-            maxWidth: "1000px",
-          }}
-        >
-          {["New York", "London", "Dubai", "Tokyo"].map((city) => (
-            <div
-              key={city}
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "20px",
-                padding: "30px",
-                transition: "0.3s",
-              }}
-            >
-              <h3>{city}</h3>
+        <section style={styles.grid}>
+          {cities.map((city) => (
+            <div key={city.name} style={styles.card}>
+              <div>
+                <h3 style={styles.cardTitle}>{city.name}</h3>
+                <p style={styles.country}>{city.country}</p>
+              </div>
 
-              <p
-                style={{
-                  opacity: 0.7,
-                }}
-              >
-                Live world time
-              </p>
+              <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
+
+              <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
+              <p style={styles.zone}>{city.timeZone}</p>
             </div>
           ))}
-        </div>
+        </section>
       </main>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
+    color: "white",
+    fontFamily: "Inter, Arial, sans-serif",
+  },
+  header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "22px 42px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(7,17,32,0.86)",
+    backdropFilter: "blur(14px)",
+  },
+  logo: {
+    fontSize: "1.6rem",
+    fontWeight: 800,
+  },
+  nav: {
+    display: "flex",
+    gap: "24px",
+    color: "#aeb8ca",
+    fontSize: "0.95rem",
+  },
+  main: {
+    padding: "80px 22px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  hero: {
+    textAlign: "center",
+    maxWidth: "850px",
+  },
+  badge: {
+    color: "#67e8f9",
+    letterSpacing: "0.2em",
+    fontSize: "0.8rem",
+    fontWeight: 700,
+  },
+  title: {
+    fontSize: "clamp(3rem, 7vw, 6rem)",
+    lineHeight: 1,
+    margin: "18px 0",
+  },
+  subtitle: {
+    color: "#b8c1d1",
+    fontSize: "1.25rem",
+    lineHeight: 1.6,
+    maxWidth: "680px",
+  },
+  featureCard: {
+    marginTop: "60px",
+    width: "100%",
+    maxWidth: "620px",
+    padding: "42px",
+    borderRadius: "28px",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    textAlign: "center",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+  },
+  cityLabel: {
+    color: "#c5cad5",
+    fontSize: "1.1rem",
+    margin: 0,
+  },
+  mainClock: {
+    fontSize: "clamp(3rem, 8vw, 5rem)",
+    margin: "18px 0",
+    letterSpacing: "0.03em",
+  },
+  dateText: {
+    color: "#9ca7ba",
+    margin: 0,
+  },
+  search: {
+    marginTop: "44px",
+    width: "100%",
+    maxWidth: "620px",
+    padding: "20px 24px",
+    borderRadius: "18px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    fontSize: "1rem",
+    outline: "none",
+  },
+  grid: {
+    marginTop: "58px",
+    width: "100%",
+    maxWidth: "1180px",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: "22px",
+  },
+  card: {
+    padding: "28px",
+    borderRadius: "24px",
+    background: "rgba(255,255,255,0.055)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
+  },
+  cardTitle: {
+    fontSize: "1.35rem",
+    margin: 0,
+  },
+  country: {
+    color: "#9ca7ba",
+    marginTop: "8px",
+  },
+  cardTime: {
+    fontSize: "2.25rem",
+    fontWeight: 800,
+    marginTop: "30px",
+    letterSpacing: "0.03em",
+  },
+  cardDate: {
+    color: "#c5cad5",
+    marginBottom: "8px",
+  },
+  zone: {
+    color: "#6f7b91",
+    fontSize: "0.85rem",
+  },
+};
 
 export default App;
