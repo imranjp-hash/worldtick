@@ -29,13 +29,16 @@ function getDate(timeZone) {
 }
 
 function App() {
-  const [tick, setTick] = useState(Date.now());
+  const [search, setSearch] = useState("");
+const [, setTick] = useState(Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
+const filteredCities = cities.filter((city) =>
+  `${city.name} ${city.country}`.toLowerCase().includes(search.toLowerCase())
+);
   return (
     <div style={styles.page}>
       <header style={styles.header}>
@@ -68,13 +71,15 @@ function App() {
         </section>
 
         <input
-          style={styles.search}
-          placeholder="Search cities..."
-          type="text"
-        />
+  style={styles.search}
+  placeholder="Search cities..."
+  type="text"
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+/>
 
         <section style={styles.grid}>
-          {cities.map((city) => (
+          {filteredCities.map((city) => (
             <div key={city.name} style={styles.card}>
               <div>
                 <h3 style={styles.cardTitle}>{city.name}</h3>
