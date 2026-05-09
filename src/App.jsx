@@ -80,9 +80,11 @@ const filteredCities = cities.filter((city) =>
 
         <section style={styles.grid}>
           {filteredCities.map((city) => (
-            <div key={city.name} style={styles.card}>
+            <div key={city.name} style={styles.card} className="city-card">
               <div>
-                <h3 style={styles.cardTitle}>{city.name}</h3>
+                <h3 style={styles.cardTitle} className="city-name">
+  {city.name}
+</h3>
                 <p style={styles.country}>{city.country}</p>
               </div>
 
