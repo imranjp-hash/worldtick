@@ -77,13 +77,24 @@ function getDate(timeZone) {
 
 function App() {
   const [search, setSearch] = useState("");
-  const [selectedCities, setSelectedCities] = useState([]);
+  const [selectedCities, setSelectedCities] = useState(() => {
+  const savedCities = localStorage.getItem('worldtick-selected-cities');
+
+  return savedCities ? JSON.parse(savedCities) : [];
+});
   const [, setTick] = useState(Date.now());
 
-  useEffect(() => {
-    const timer = setInterval(() => setTick(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+useEffect(() => {
+  const timer = setInterval(() => setTick(Date.now()), 1000);
+  return () => clearInterval(timer);
+}, []);
+
+useEffect(() => {
+  localStorage.setItem(
+    "worldtick-selected-cities",
+    JSON.stringify(selectedCities)
+  );
+}, [selectedCities]);
 
   const filteredCities = cities.filter((city) =>
     `${city.name} ${city.country}`.toLowerCase().includes(search.toLowerCase())
