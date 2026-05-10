@@ -77,6 +77,7 @@ function getDate(timeZone) {
 
 function App() {
   const [search, setSearch] = useState("");
+  const [selectedCities, setSelectedCities] = useState([]);
   const [, setTick] = useState(Date.now());
 
   useEffect(() => {
@@ -87,6 +88,20 @@ function App() {
   const filteredCities = cities.filter((city) =>
     `${city.name} ${city.country}`.toLowerCase().includes(search.toLowerCase())
   );
+
+  const addCity = (city) => {
+    const alreadyAdded = selectedCities.find(
+      (selected) => selected.name === city.name
+    );
+
+    if (!alreadyAdded) {
+      setSelectedCities([...selectedCities, city]);
+    }
+  };
+
+  const removeCity = (cityName) => {
+    setSelectedCities(selectedCities.filter((city) => city.name !== cityName));
+  };
 
   return (
     <div style={styles.page}>
@@ -119,13 +134,9 @@ function App() {
         <section style={styles.featureCard}>
           <p style={styles.cityLabel}>Toronto</p>
 
-          <h2 style={styles.mainClock}>
-            {getTime("America/Toronto")}
-          </h2>
+          <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
 
-          <p style={styles.dateText}>
-            {getDate("America/Toronto")}
-          </p>
+          <p style={styles.dateText}>{getDate("America/Toronto")}</p>
         </section>
 
         <input
@@ -136,14 +147,39 @@ function App() {
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        <div style={styles.sectionHeader}>
-          <p style={styles.sectionBadge}>
-            POPULAR GLOBAL CITIES
-          </p>
+        {selectedCities.length > 0 && (
+          <>
+            <div style={styles.sectionHeader}>
+              <p style={styles.sectionBadge}>SELECTED CITIES</p>
+              <h2 style={styles.sectionTitle}>Your world clock dashboard</h2>
+            </div>
 
-          <h2 style={styles.sectionTitle}>
-            Explore live city times
-          </h2>
+            <section style={styles.grid}>
+              {selectedCities.map((city) => (
+                <div key={city.name} style={styles.selectedCard}>
+                  <button
+                    style={styles.removeButton}
+                    onClick={() => removeCity(city.name)}
+                  >
+                    ×
+                  </button>
+
+                  <h3 style={styles.cardTitle}>{city.name}</h3>
+                  <p style={styles.country}>{city.country}</p>
+
+                  <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
+
+                  <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
+                  <p style={styles.zone}>{city.timeZone}</p>
+                </div>
+              ))}
+            </section>
+          </>
+        )}
+
+        <div style={styles.sectionHeader}>
+          <p style={styles.sectionBadge}>POPULAR GLOBAL CITIES</p>
+          <h2 style={styles.sectionTitle}>Explore live city times</h2>
         </div>
 
         <section style={styles.grid}>
@@ -152,28 +188,21 @@ function App() {
               key={city.name}
               style={styles.card}
               className="city-card"
+              onClick={() => addCity(city)}
             >
               <div>
                 <h3 style={styles.cardTitle} className="city-name">
                   {city.name}
                 </h3>
 
-                <p style={styles.country}>
-                  {city.country}
-                </p>
+                <p style={styles.country}>{city.country}</p>
               </div>
 
-              <div style={styles.cardTime}>
-                {getTime(city.timeZone)}
-              </div>
+              <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
 
-              <p style={styles.cardDate}>
-                {getDate(city.timeZone)}
-              </p>
+              <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
 
-              <p style={styles.zone}>
-                {city.timeZone}
-              </p>
+              <p style={styles.zone}>{city.timeZone}</p>
             </div>
           ))}
         </section>
@@ -322,6 +351,29 @@ const styles = {
     background: "rgba(255,255,255,0.055)",
     border: "1px solid rgba(255,255,255,0.1)",
     boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
+  },
+
+  selectedCard: {
+    position: "relative",
+    padding: "28px",
+    borderRadius: "24px",
+    background: "rgba(103,232,249,0.08)",
+    border: "1px solid rgba(103,232,249,0.3)",
+    boxShadow: "0 20px 70px rgba(103,232,249,0.12)",
+  },
+
+  removeButton: {
+    position: "absolute",
+    top: "18px",
+    right: "18px",
+    width: "30px",
+    height: "30px",
+    borderRadius: "999px",
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.08)",
+    color: "white",
+    fontSize: "1.3rem",
+    cursor: "pointer",
   },
 
   cardTitle: {
