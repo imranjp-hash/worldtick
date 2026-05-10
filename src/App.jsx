@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+
 const cities = [
   { name: "Toronto", country: "Canada", timeZone: "America/Toronto" },
   { name: "Vancouver", country: "Canada", timeZone: "America/Vancouver" },
@@ -76,19 +77,22 @@ function getDate(timeZone) {
 
 function App() {
   const [search, setSearch] = useState("");
-const [, setTick] = useState(Date.now());
+  const [, setTick] = useState(Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => setTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-const filteredCities = cities.filter((city) =>
-  `${city.name} ${city.country}`.toLowerCase().includes(search.toLowerCase())
-);
+
+  const filteredCities = cities.filter((city) =>
+    `${city.name} ${city.country}`.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.logo}>WorldTick</div>
+
         <nav style={styles.nav}>
           <span>World Clock</span>
           <span>Compare Time</span>
@@ -99,11 +103,13 @@ const filteredCities = cities.filter((city) =>
       <main style={styles.main}>
         <section style={styles.hero}>
           <p style={styles.badge}>LIVE GLOBAL TIME</p>
+
           <h1 style={styles.title}>
             Global Time.
             <br />
             Simplified.
           </h1>
+
           <p style={styles.subtitle}>
             Track live time across the world instantly with beautiful real-time
             clocks and city comparisons.
@@ -112,32 +118,62 @@ const filteredCities = cities.filter((city) =>
 
         <section style={styles.featureCard}>
           <p style={styles.cityLabel}>Toronto</p>
-          <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
-          <p style={styles.dateText}>{getDate("America/Toronto")}</p>
+
+          <h2 style={styles.mainClock}>
+            {getTime("America/Toronto")}
+          </h2>
+
+          <p style={styles.dateText}>
+            {getDate("America/Toronto")}
+          </p>
         </section>
 
         <input
-  style={styles.search}
-  placeholder="Search cities..."
-  type="text"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-/>
+          style={styles.search}
+          placeholder="Search cities..."
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <div style={styles.sectionHeader}>
+          <p style={styles.sectionBadge}>
+            POPULAR GLOBAL CITIES
+          </p>
+
+          <h2 style={styles.sectionTitle}>
+            Explore live city times
+          </h2>
+        </div>
 
         <section style={styles.grid}>
           {filteredCities.map((city) => (
-            <div key={city.name} style={styles.card} className="city-card">
+            <div
+              key={city.name}
+              style={styles.card}
+              className="city-card"
+            >
               <div>
                 <h3 style={styles.cardTitle} className="city-name">
-  {city.name}
-</h3>
-                <p style={styles.country}>{city.country}</p>
+                  {city.name}
+                </h3>
+
+                <p style={styles.country}>
+                  {city.country}
+                </p>
               </div>
 
-              <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
+              <div style={styles.cardTime}>
+                {getTime(city.timeZone)}
+              </div>
 
-              <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
-              <p style={styles.zone}>{city.timeZone}</p>
+              <p style={styles.cardDate}>
+                {getDate(city.timeZone)}
+              </p>
+
+              <p style={styles.zone}>
+                {city.timeZone}
+              </p>
             </div>
           ))}
         </section>
@@ -154,6 +190,7 @@ const styles = {
     color: "white",
     fontFamily: "Inter, Arial, sans-serif",
   },
+
   header: {
     position: "sticky",
     top: 0,
@@ -166,43 +203,51 @@ const styles = {
     background: "rgba(7,17,32,0.86)",
     backdropFilter: "blur(14px)",
   },
+
   logo: {
     fontSize: "1.6rem",
     fontWeight: 800,
   },
+
   nav: {
     display: "flex",
     gap: "24px",
     color: "#aeb8ca",
     fontSize: "0.95rem",
   },
+
   main: {
     padding: "80px 22px",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
   },
+
   hero: {
     textAlign: "center",
     maxWidth: "850px",
   },
+
   badge: {
     color: "#67e8f9",
     letterSpacing: "0.2em",
     fontSize: "0.8rem",
     fontWeight: 700,
   },
+
   title: {
     fontSize: "clamp(3rem, 7vw, 6rem)",
     lineHeight: 1,
     margin: "18px 0",
   },
+
   subtitle: {
     color: "#b8c1d1",
     fontSize: "1.25rem",
     lineHeight: 1.6,
     maxWidth: "680px",
   },
+
   featureCard: {
     marginTop: "60px",
     width: "100%",
@@ -214,20 +259,24 @@ const styles = {
     textAlign: "center",
     boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
   },
+
   cityLabel: {
     color: "#c5cad5",
     fontSize: "1.1rem",
     margin: 0,
   },
+
   mainClock: {
     fontSize: "clamp(3rem, 8vw, 5rem)",
     margin: "18px 0",
     letterSpacing: "0.03em",
   },
+
   dateText: {
     color: "#9ca7ba",
     margin: 0,
   },
+
   search: {
     marginTop: "44px",
     width: "100%",
@@ -240,6 +289,24 @@ const styles = {
     fontSize: "1rem",
     outline: "none",
   },
+
+  sectionHeader: {
+    marginTop: "70px",
+    textAlign: "center",
+  },
+
+  sectionBadge: {
+    color: "#67e8f9",
+    letterSpacing: "0.18em",
+    fontSize: "0.75rem",
+    fontWeight: 700,
+  },
+
+  sectionTitle: {
+    fontSize: "2rem",
+    margin: "10px 0 0",
+  },
+
   grid: {
     marginTop: "58px",
     width: "100%",
@@ -248,6 +315,7 @@ const styles = {
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "22px",
   },
+
   card: {
     padding: "28px",
     borderRadius: "24px",
@@ -255,24 +323,29 @@ const styles = {
     border: "1px solid rgba(255,255,255,0.1)",
     boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
   },
+
   cardTitle: {
     fontSize: "1.35rem",
     margin: 0,
   },
+
   country: {
     color: "#9ca7ba",
     marginTop: "8px",
   },
+
   cardTime: {
     fontSize: "2.25rem",
     fontWeight: 800,
     marginTop: "30px",
     letterSpacing: "0.03em",
   },
+
   cardDate: {
     color: "#c5cad5",
     marginBottom: "8px",
   },
+
   zone: {
     color: "#6f7b91",
     fontSize: "0.85rem",
