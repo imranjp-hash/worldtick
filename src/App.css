@@ -29,3 +29,21 @@ body {
 .city-card:hover .city-name {
   color: #67e8f9;
 }
+button:hover {
+  transition: all 0.25s ease;
+}
+
+button:hover {
+  background: rgba(103, 232, 249, 0.14);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(103, 232, 249, 0.15);
+}
+
+button:hover strong {
+  color: #67e8f9;
+}
+
+button:hover span:last-child {
+  transform: translateX(4px);
+  transition: transform 0.25s ease;
+}
