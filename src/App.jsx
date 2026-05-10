@@ -89,6 +89,8 @@ function App() {
     `${city.name} ${city.country}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  const suggestions = search.trim() === "" ? [] : filteredCities.slice(0, 6);
+
   const addCity = (city) => {
     const alreadyAdded = selectedCities.find(
       (selected) => selected.name === city.name
@@ -97,6 +99,8 @@ function App() {
     if (!alreadyAdded) {
       setSelectedCities([...selectedCities, city]);
     }
+
+    setSearch("");
   };
 
   const removeCity = (cityName) => {
@@ -133,19 +137,48 @@ function App() {
 
         <section style={styles.featureCard}>
           <p style={styles.cityLabel}>Toronto</p>
-
           <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
-
           <p style={styles.dateText}>{getDate("America/Toronto")}</p>
         </section>
 
-        <input
-          style={styles.search}
-          placeholder="Search cities..."
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div style={styles.searchWrap}>
+          <input
+            style={styles.search}
+            placeholder="Search cities..."
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          {suggestions.length > 0 && (
+            <div style={styles.dropdown}>
+              {suggestions.map((city) => (
+                <button
+                  key={city.name}
+                  style={styles.suggestion}
+                  onClick={() => addCity(city)}
+                >
+                  <span>
+                    <strong>{city.name}</strong>
+                    <small style={styles.suggestionCountry}>
+                      {city.country}
+                    </small>
+                  </span>
+
+                  <span style={styles.suggestionTime}>
+                    {getTime(city.timeZone)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {search.trim() !== "" && suggestions.length === 0 && (
+            <div style={styles.dropdown}>
+              <div style={styles.noResult}>No cities found</div>
+            </div>
+          )}
+        </div>
 
         {selectedCities.length > 0 && (
           <>
@@ -166,9 +199,7 @@ function App() {
 
                   <h3 style={styles.cardTitle}>{city.name}</h3>
                   <p style={styles.country}>{city.country}</p>
-
                   <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
-
                   <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
                   <p style={styles.zone}>{city.timeZone}</p>
                 </div>
@@ -194,14 +225,11 @@ function App() {
                 <h3 style={styles.cardTitle} className="city-name">
                   {city.name}
                 </h3>
-
                 <p style={styles.country}>{city.country}</p>
               </div>
 
               <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
-
               <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
-
               <p style={styles.zone}>{city.timeZone}</p>
             </div>
           ))}
@@ -306,10 +334,15 @@ const styles = {
     margin: 0,
   },
 
-  search: {
-    marginTop: "44px",
+  searchWrap: {
+    position: "relative",
     width: "100%",
     maxWidth: "620px",
+    marginTop: "44px",
+  },
+
+  search: {
+    width: "100%",
     padding: "20px 24px",
     borderRadius: "18px",
     border: "1px solid rgba(255,255,255,0.12)",
@@ -317,6 +350,52 @@ const styles = {
     color: "white",
     fontSize: "1rem",
     outline: "none",
+  },
+
+  dropdown: {
+    position: "absolute",
+    top: "68px",
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    overflow: "hidden",
+    borderRadius: "18px",
+    border: "1px solid rgba(103,232,249,0.22)",
+    background: "rgba(10,22,40,0.96)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(18px)",
+  },
+
+  suggestion: {
+    width: "100%",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "16px 20px",
+    border: "none",
+    borderBottom: "1px solid rgba(255,255,255,0.07)",
+    background: "transparent",
+    color: "white",
+    cursor: "pointer",
+    textAlign: "left",
+  },
+
+  suggestionCountry: {
+    display: "block",
+    marginTop: "4px",
+    color: "#9ca7ba",
+    fontSize: "0.85rem",
+  },
+
+  suggestionTime: {
+    color: "#67e8f9",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  },
+
+  noResult: {
+    padding: "18px 20px",
+    color: "#9ca7ba",
   },
 
   sectionHeader: {
