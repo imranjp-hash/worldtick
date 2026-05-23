@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
+import { Menu, X } from "lucide-react";
+import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
+import CityPage from "./pages/CityPage";
 
 const cities = [
   { name: "Toronto", country: "Canada", timeZone: "America/Toronto" },
@@ -77,6 +80,8 @@ function getDate(timeZone) {
 
 function App() {
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCities, setSelectedCities] = useState(() => {
   const savedCities = localStorage.getItem('worldtick-selected-cities');
 
@@ -119,16 +124,37 @@ useEffect(() => {
   };
 
   return (
-    <div style={styles.page}>
+  <Routes>
+    <Route
+      path="/"
+      element={
+  
+        <div style={styles.page}>
       <header style={styles.header}>
-        <div style={styles.logo}>WorldTick</div>
+  <div style={styles.logo}>WorldTick</div>
 
-        <nav style={styles.nav}>
-          <span>World Clock</span>
-          <span>Compare Time</span>
-          <span>Contact</span>
-        </nav>
-      </header>
+  <button
+    style={styles.mobileMenuButton}
+    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+  >
+    {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+  </button>
+
+  <nav
+    style={{
+      ...styles.nav,
+      ...(window.innerWidth <= 768
+        ? mobileMenuOpen
+          ? styles.mobileNavOpen
+          : styles.mobileNavClosed
+        : {}),
+    }}
+  >
+    <span>World Clock</span>
+    <span>Compare Time</span>
+    <span>Contact</span>
+  </nav>
+</header>
 
       <main style={styles.main}>
         <section style={styles.hero}>
@@ -230,7 +256,9 @@ useEffect(() => {
               key={city.name}
               style={styles.card}
               className="city-card"
-              onClick={() => addCity(city)}
+              onClick={() =>
+  navigate(`/city/${city.name.toLowerCase().replaceAll(" ", "-")}`)
+}
             >
               <div>
                 <h3 style={styles.cardTitle} className="city-name">
@@ -247,6 +275,14 @@ useEffect(() => {
         </section>
       </main>
     </div>
+            }
+      />
+
+      <Route
+        path="/city/:city"
+        element={<CityPage />}
+      />
+    </Routes>
   );
 }
 
@@ -283,6 +319,36 @@ const styles = {
     color: "#aeb8ca",
     fontSize: "0.95rem",
   },
+  mobileMenuButton: {
+  display: window.innerWidth <= 768 ? "flex" : "none",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "42px",
+  height: "42px",
+  borderRadius: "12px",
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "white",
+  cursor: "pointer",
+},
+
+mobileNavOpen: {
+  position: "absolute",
+  top: "78px",
+  right: "10px",
+  minWidth: "160px",
+  flexDirection: "column",
+  background: "rgba(7,17,32,0.98)",
+  padding: "20px",
+  borderRadius: "18px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  display: "flex",
+  gap: "18px",
+},
+
+mobileNavClosed: {
+  display: "none",
+},
 
   main: {
     padding: "80px 22px",
@@ -491,7 +557,7 @@ const styles = {
   zone: {
     color: "#6f7b91",
     fontSize: "0.85rem",
-  },
+  },  
 };
 
 export default App;

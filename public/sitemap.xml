@@ -1,8 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://worldtick.site/</loc></url>
-  <url><loc>https://worldtick.site/city/london</loc></url>
-  <url><loc>https://worldtick.site/city/dubai</loc></url>
-  <url><loc>https://worldtick.site/city/tokyo</loc></url>
-  <url><loc>https://worldtick.site/city/toronto</loc></url>
+
+  <url>
+    <loc>https://worldtick.site/</loc>
+  </url>
+
+  <url>
+    <loc>https://worldtick.site/time-in/tokyo</loc>
+  </url>
+
+  <url>
+    <loc>https://worldtick.site/time-in/london</loc>
+  </url>
+
+  <url>
+    <loc>https://worldtick.site/time-in/new-york</loc>
+  </url>
+
+  <url>
+    <loc>https://worldtick.site/time-in/toronto</loc>
+  </url>
+
+  <url>
+    <loc>https://worldtick.site/time-in/dublin</loc>
+  </url>
+
 </urlset>
