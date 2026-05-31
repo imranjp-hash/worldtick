@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import CityPage from "./pages/CityPage";
+import Header from "./components/Header";
 
 const cities = [
   { name: "Toronto", country: "Canada", timeZone: "America/Toronto" },
@@ -81,7 +81,7 @@ function getDate(timeZone) {
 function App() {
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
   const [selectedCities, setSelectedCities] = useState(() => {
   const savedCities = localStorage.getItem('worldtick-selected-cities');
 
@@ -130,31 +130,7 @@ useEffect(() => {
       element={
   
         <div style={styles.page}>
-      <header style={styles.header}>
-  <div style={styles.logo}>WorldTick</div>
-
-  <button
-    style={styles.mobileMenuButton}
-    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-  >
-    {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-  </button>
-
-  <nav
-    style={{
-      ...styles.nav,
-      ...(window.innerWidth <= 768
-        ? mobileMenuOpen
-          ? styles.mobileNavOpen
-          : styles.mobileNavClosed
-        : {}),
-    }}
-  >
-    <span>World Clock</span>
-    <span>Compare Time</span>
-    <span>Contact</span>
-  </nav>
-</header>
+      <Header />
 
       <main style={styles.main}>
         <section style={styles.hero}>
@@ -226,10 +202,19 @@ useEffect(() => {
 
             <section style={styles.grid}>
               {selectedCities.map((city) => (
-                <div key={city.name} style={styles.selectedCard}>
+                <div
+  key={city.name}
+  style={styles.selectedCard}
+  onClick={() =>
+    navigate(`/time-in/${city.name.toLowerCase().replaceAll(" ", "-")}`)
+  }
+>
                   <button
                     style={styles.removeButton}
-                    onClick={() => removeCity(city.name)}
+                    onClick={(e) => {
+  e.stopPropagation();
+  removeCity(city.name);
+}}
                   >
                     ×
                   </button>
@@ -257,7 +242,7 @@ useEffect(() => {
               style={styles.card}
               className="city-card"
               onClick={() =>
-  navigate(`/city/${city.name.toLowerCase().replaceAll(" ", "-")}`)
+  navigate(`/time-in/${city.name.toLowerCase().replaceAll(" ", "-")}`)
 }
             >
               <div>
@@ -279,9 +264,9 @@ useEffect(() => {
       />
 
       <Route
-        path="/city/:city"
-        element={<CityPage />}
-      />
+  path="/time-in/:city"
+  element={<CityPage />}
+/>
     </Routes>
   );
 }
@@ -294,61 +279,7 @@ const styles = {
     color: "white",
     fontFamily: "Inter, Arial, sans-serif",
   },
-
-  header: {
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "22px 42px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(7,17,32,0.86)",
-    backdropFilter: "blur(14px)",
-  },
-
-  logo: {
-    fontSize: "1.6rem",
-    fontWeight: 800,
-  },
-
-  nav: {
-    display: "flex",
-    gap: "24px",
-    color: "#aeb8ca",
-    fontSize: "0.95rem",
-  },
-  mobileMenuButton: {
-  display: window.innerWidth <= 768 ? "flex" : "none",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "42px",
-  height: "42px",
-  borderRadius: "12px",
-  background: "rgba(255,255,255,0.08)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "white",
-  cursor: "pointer",
-},
-
-mobileNavOpen: {
-  position: "absolute",
-  top: "78px",
-  right: "10px",
-  minWidth: "160px",
-  flexDirection: "column",
-  background: "rgba(7,17,32,0.98)",
-  padding: "20px",
-  borderRadius: "18px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  display: "flex",
-  gap: "18px",
-},
-
-mobileNavClosed: {
-  display: "none",
-},
+ 
 
   main: {
     padding: "80px 22px",
@@ -516,6 +447,7 @@ mobileNavClosed: {
     background: "rgba(103,232,249,0.08)",
     border: "1px solid rgba(103,232,249,0.3)",
     boxShadow: "0 20px 70px rgba(103,232,249,0.12)",
+    cursor: "pointer",
   },
 
   removeButton: {
