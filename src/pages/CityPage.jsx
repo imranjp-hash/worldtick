@@ -1,6 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import { cities } from "../data/cities";
+import { Link } from "react-router-dom";
 
 
 
@@ -22,6 +23,42 @@ function getDate(timezone) {
     day: "numeric",
     year: "numeric",
   }).format(new Date());
+}
+
+function getOffsetMinutes(timezone) {
+  const now = new Date();
+
+  const utcDate = new Date(
+    now.toLocaleString("en-US", { timeZone: "UTC" })
+  );
+
+  const cityDate = new Date(
+    now.toLocaleString("en-US", { timeZone: timezone })
+  );
+
+  return (cityDate - utcDate) / 60000;
+}
+
+function getDifferenceText(fromCity, toCity) {
+  const differenceMinutes =
+    getOffsetMinutes(toCity.timezone) - getOffsetMinutes(fromCity.timezone);
+
+  const absoluteMinutes = Math.abs(differenceMinutes);
+  const hours = Math.floor(absoluteMinutes / 60);
+  const minutes = absoluteMinutes % 60;
+
+  const differenceText =
+    minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+
+  if (differenceMinutes > 0) {
+    return `${toCity.name} is ${differenceText} ahead of ${fromCity.name}`;
+  }
+
+  if (differenceMinutes < 0) {
+    return `${toCity.name} is ${differenceText} behind ${fromCity.name}`;
+  }
+
+  return `${toCity.name} and ${fromCity.name} are in the same time zone`;
 }
 
 export default function CityPage() {
@@ -49,6 +86,16 @@ export default function CityPage() {
     );
   }
 
+  const previewCities = cities
+  .filter(
+    (city) =>
+      city.slug !== cityData.slug &&
+      ["toronto", "new-york", "london", "dubai", "tokyo", "sydney"].includes(
+        city.slug
+      )
+  )
+  .slice(0, 6);
+  
   return (
     <div
       style={{
@@ -136,6 +183,224 @@ export default function CityPage() {
             {cityData.timezone}
           </div>
         </div>
+        <div
+  style={{
+    maxWidth: "1000px",
+    margin: "60px auto 0",
+    textAlign: "center",
+  }}
+>
+  <h2 style={{ fontSize: "2rem", marginBottom: "24px" }}>
+    Related Cities
+  </h2>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: "18px",
+    }}
+  >
+    {cities
+      .filter(
+        (city) =>
+          city.country === cityData.country &&
+          city.slug !== cityData.slug
+      )
+      .slice(0, 6)
+      .map((city) => (
+        <Link
+          key={city.slug}
+          to={`/time-in/${city.slug}`}
+          onMouseEnter={(e) => {
+  e.currentTarget.style.transform = "translateY(-5px)";
+  e.currentTarget.style.boxShadow = "0 14px 35px rgba(103,232,249,0.18)";
+}}
+
+onMouseLeave={(e) => {
+  e.currentTarget.style.transform = "translateY(0)";
+  e.currentTarget.style.boxShadow = "none";
+}}
+          style={{
+            padding: "18px",
+            borderRadius: "18px",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            color: "white",
+            textDecoration: "none",
+            fontWeight: 800,
+            cursor: "pointer",
+transition: "all 0.25s ease",
+          }}
+        >
+          {city.name}
+        </Link>
+      ))}
+  </div>
+  <div
+  style={{
+    maxWidth: "1000px",
+    margin: "55px auto 0",
+    textAlign: "center",
+  }}
+>
+  <h2 style={{ fontSize: "2rem", marginBottom: "12px" }}>
+    Time Difference From {cityData.name}
+  </h2>
+
+  <p
+    style={{
+      color: "#9ca7ba",
+      marginBottom: "26px",
+      fontSize: "1.05rem",
+    }}
+  >
+    See how {cityData.name} compares with major cities around the world.
+  </p>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+      gap: "18px",
+    }}
+  >
+    {cities
+      .filter(
+        (city) =>
+          city.slug !== cityData.slug &&
+          ["toronto", "new-york", "london", "dubai", "tokyo", "sydney"].includes(
+            city.slug
+          )
+      )
+      .slice(0, 6)
+      .map((city) => (
+        <Link
+          key={city.slug}
+          to={`/compare/${cityData.slug}/${city.slug}`}
+          onMouseEnter={(e) => {
+  e.currentTarget.style.transform = "translateY(-5px)";
+  e.currentTarget.style.boxShadow = "0 14px 35px rgba(103,232,249,0.18)";
+  e.currentTarget.style.borderColor = "rgba(103,232,249,0.45)";
+}}
+
+onMouseLeave={(e) => {
+  e.currentTarget.style.transform = "translateY(0)";
+  e.currentTarget.style.boxShadow = "none";
+  e.currentTarget.style.borderColor = "rgba(103,232,249,0.22)";
+}}
+          style={{
+  padding: "18px",
+  borderRadius: "18px",
+  background: "rgba(103,232,249,0.08)",
+  border: "1px solid rgba(103,232,249,0.22)",
+  textDecoration: "none",
+  color: "white",
+  textAlign: "center",
+  transition: "all 0.25s ease",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  minHeight: "90px",
+  cursor: "pointer",
+fontWeight: "700",
+}}
+        >
+          <>
+  <div
+    style={{
+      fontSize: "1rem",
+      fontWeight: "800",
+      marginBottom: "6px",
+    }}
+  >
+    {city.name}
+  </div>
+
+  <div
+    style={{
+      fontSize: "0.9rem",
+      color: "#9ca7ba",
+    }}
+  >
+    {getDifferenceText(cityData, city)
+      .replace(`${city.name} is `, "")
+      .replace(` ${cityData.name}`, "")}
+    {" →"}
+  </div>
+</>
+        </Link>
+      ))}
+  </div>
+</div>
+  <div
+  style={{
+    maxWidth: "1000px",
+    margin: "55px auto 0",
+    textAlign: "center",
+  }}
+>
+  <h2 style={{ fontSize: "2rem", marginBottom: "12px" }}>
+    Compare {cityData.name} With Other Cities
+  </h2>
+
+  <p
+    style={{
+      color: "#9ca7ba",
+      marginBottom: "26px",
+      fontSize: "1.05rem",
+    }}
+  >
+    Quickly compare the time difference between {cityData.name} and popular world cities.
+  </p>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: "18px",
+    }}
+  >
+    {cities
+      .filter(
+        (city) =>
+          city.slug !== cityData.slug &&
+          ["toronto", "new-york", "london", "dubai", "tokyo", "sydney"].includes(city.slug)
+      )
+      .slice(0, 6)
+      .map((city) => (
+        <Link
+          key={city.slug}
+          to={`/compare/${cityData.slug}/${city.slug}`}
+          onMouseEnter={(e) => {
+  e.currentTarget.style.transform = "translateY(-5px)";
+  e.currentTarget.style.boxShadow = "0 14px 35px rgba(103,232,249,0.18)";
+  e.currentTarget.style.borderColor = "rgba(103,232,249,0.45)";
+}}
+
+onMouseLeave={(e) => {
+  e.currentTarget.style.transform = "translateY(0)";
+  e.currentTarget.style.boxShadow = "none";
+  e.currentTarget.style.borderColor = "rgba(103,232,249,0.22)";
+}}
+          style={{
+            padding: "18px",
+            borderRadius: "18px",
+            background: "rgba(103,232,249,0.07)",
+            border: "1px solid rgba(103,232,249,0.22)",
+            color: "#67e8f9",
+            textDecoration: "none",
+            fontWeight: 900,
+            cursor: "pointer",
+            transition: "all 0.25s ease",
+          }}
+        >
+          {cityData.name} → {city.name}
+        </Link>
+      ))}
+  </div>
+</div>
+</div>
       </div>
     </div>
   );

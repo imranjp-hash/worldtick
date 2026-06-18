@@ -10,6 +10,7 @@ const Header = () => {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Browse Cities', path: '/cities' },
+    { label: 'Time Difference Calculator', path: '/time-difference' },
     { label: 'About', path: '/about' },
     { label: 'Contact', path: '/contact' },
     { label: 'Privacy', path: '/privacy' },
@@ -27,7 +28,14 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-[#0F172A]/85 backdrop-blur-md">
       <div className="w-full px-4 md:px-6 lg:px-8 py-5 md:py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
+          <button
+  className="mobileHeaderButton flex items-center justify-center text-slate-300 hover:text-white transition p-2"
+  onClick={() => setMenuOpen(!menuOpen)}
+  aria-label="Toggle menu"
+>
+            {menuOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
           <Link
             to="/"
             onClick={() => setMenuOpen(false)}
@@ -40,49 +48,133 @@ const Header = () => {
               className="h-14 sm:h-16 md:h-20 lg:h-[88px] w-auto object-contain transition-all duration-300 hover:scale-105"
             />
           </Link>
-
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-base lg:text-lg">
+<nav
+  className="desktopHeaderNav"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "38px",
+    marginLeft: "80px",
+    flex: 1,
+  }}
+>
             {navLinks.map((link) => (
-              <Link key={link.path} to={link.path} className={getLinkClass(link.path)}>
+              <Link
+  key={link.path}
+  to={link.path}
+  className={getLinkClass(link.path)}
+style={{
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  color: location.pathname === link.path ? "#67e8f9" : "#e5edf7",
+  fontSize: "21px",
+fontWeight: 900,
+textShadow: "0 0 10px rgba(103,232,249,0.15)",
+  letterSpacing: "0.03em",
+  padding: "8px 4px",
+  borderBottom:
+    location.pathname === link.path
+      ? "2px solid #67e8f9"
+      : "2px solid transparent",
+  transition: "all 0.25s ease",
+}}
+>
                 {link.label}
               </Link>
             ))}
           </nav>
 
-          <button
-            className="md:hidden text-slate-300 hover:text-white transition"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? <X size={28} /> : <Menu size={28} />}
-          </button>
+          
         </div>
 
         <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -12, height: 0 }}
-              animate={{ opacity: 1, y: 0, height: 'auto' }}
-              exit={{ opacity: 0, y: -12, height: 0 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="md:hidden overflow-hidden"
+  {menuOpen && (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.45 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={() => setMenuOpen(false)}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "black",
+          zIndex: 40,
+        }}
+      />
+
+      <motion.div
+        initial={{ x: "-100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "-100%" }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          height: "100vh",
+          width: "320px",
+          background: "#071120",
+          borderRight: "1px solid rgba(255,255,255,0.1)",
+          padding: "28px 24px",
+          zIndex: 50,
+        }}
+      >
+        <div style={{ marginBottom: "30px" }}>
+          <img
+            src="https://res.cloudinary.com/dguinb6up/image/upload/v1775780861/worldtick-logo-premium_dkh2gu.svg"
+            alt="WorldTick"
+            style={{
+  height: "180px",
+  width: "auto",
+  transform: "scale(1.8)"
+}}
+          />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+          {navLinks.map((link) => (
+            <Link
+              key={link.path}
+              to={link.path}
+              onClick={() => setMenuOpen(false)}
+              style={{
+                color: "white",
+                textDecoration: "none",
+                fontSize: "1.35rem",
+fontWeight: 700,
+              }}
             >
-              <div className="mt-4 w-full bg-[#0F172A]/95 border-t border-white/10 px-6 py-6 space-y-6 text-center backdrop-blur-md shadow-xl">
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    onClick={() => setMenuOpen(false)}
-                    className={`block text-lg ${getLinkClass(link.path)}`}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </motion.div>
+    </>
+  )}
+</AnimatePresence>
       </div>
+      <style>{`
+  .desktopHeaderNav {
+    display: flex;
+  }
+
+  .mobileHeaderButton {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .desktopHeaderNav {
+      display: none;
+    }
+
+    .mobileHeaderButton {
+      display: flex;
+    }
+  }
+`}</style>
     </header>
   );
 };

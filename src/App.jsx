@@ -1,63 +1,18 @@
+import TimeDifferencePage from "./pages/TimeDifferencePage";
+import ComparisonPage from "./pages/ComparisonPage";
+import CitiesPage from "./pages/CitiesPage";
+import HomePage from "./pages/HomePage";
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 import CityPage from "./pages/CityPage";
 import Header from "./components/Header";
-
-const cities = [
-  { name: "Toronto", country: "Canada", timeZone: "America/Toronto" },
-  { name: "Vancouver", country: "Canada", timeZone: "America/Vancouver" },
-  { name: "Montreal", country: "Canada", timeZone: "America/Toronto" },
-  { name: "Calgary", country: "Canada", timeZone: "America/Edmonton" },
-  { name: "New York", country: "United States", timeZone: "America/New_York" },
-  { name: "Los Angeles", country: "United States", timeZone: "America/Los_Angeles" },
-  { name: "Chicago", country: "United States", timeZone: "America/Chicago" },
-  { name: "Miami", country: "United States", timeZone: "America/New_York" },
-  { name: "London", country: "United Kingdom", timeZone: "Europe/London" },
-  { name: "Paris", country: "France", timeZone: "Europe/Paris" },
-  { name: "Berlin", country: "Germany", timeZone: "Europe/Berlin" },
-  { name: "Madrid", country: "Spain", timeZone: "Europe/Madrid" },
-  { name: "Rome", country: "Italy", timeZone: "Europe/Rome" },
-  { name: "Amsterdam", country: "Netherlands", timeZone: "Europe/Amsterdam" },
-  { name: "Zurich", country: "Switzerland", timeZone: "Europe/Zurich" },
-  { name: "Dubai", country: "United Arab Emirates", timeZone: "Asia/Dubai" },
-  { name: "Doha", country: "Qatar", timeZone: "Asia/Qatar" },
-  { name: "Riyadh", country: "Saudi Arabia", timeZone: "Asia/Riyadh" },
-  { name: "Tokyo", country: "Japan", timeZone: "Asia/Tokyo" },
-  { name: "Seoul", country: "South Korea", timeZone: "Asia/Seoul" },
-  { name: "Beijing", country: "China", timeZone: "Asia/Shanghai" },
-  { name: "Shanghai", country: "China", timeZone: "Asia/Shanghai" },
-  { name: "Hong Kong", country: "Hong Kong", timeZone: "Asia/Hong_Kong" },
-  { name: "Singapore", country: "Singapore", timeZone: "Asia/Singapore" },
-  { name: "Bangkok", country: "Thailand", timeZone: "Asia/Bangkok" },
-  { name: "Manila", country: "Philippines", timeZone: "Asia/Manila" },
-  { name: "Mumbai", country: "India", timeZone: "Asia/Kolkata" },
-  { name: "Delhi", country: "India", timeZone: "Asia/Kolkata" },
-  { name: "Karachi", country: "Pakistan", timeZone: "Asia/Karachi" },
-  { name: "Istanbul", country: "Turkey", timeZone: "Europe/Istanbul" },
-  { name: "Sydney", country: "Australia", timeZone: "Australia/Sydney" },
-  { name: "Melbourne", country: "Australia", timeZone: "Australia/Melbourne" },
-  { name: "Auckland", country: "New Zealand", timeZone: "Pacific/Auckland" },
-  { name: "Kingston", country: "Jamaica", timeZone: "America/Jamaica" },
-  { name: "Montego Bay", country: "Jamaica", timeZone: "America/Jamaica" },
-  { name: "George Town", country: "Cayman Islands", timeZone: "America/Cayman" },
-  { name: "Nassau", country: "Bahamas", timeZone: "America/Nassau" },
-  { name: "Bridgetown", country: "Barbados", timeZone: "America/Barbados" },
-  { name: "Port of Spain", country: "Trinidad and Tobago", timeZone: "America/Port_of_Spain" },
-  { name: "Mexico City", country: "Mexico", timeZone: "America/Mexico_City" },
-  { name: "Bogota", country: "Colombia", timeZone: "America/Bogota" },
-  { name: "Lima", country: "Peru", timeZone: "America/Lima" },
-  { name: "Santiago", country: "Chile", timeZone: "America/Santiago" },
-  { name: "Buenos Aires", country: "Argentina", timeZone: "America/Argentina/Buenos_Aires" },
-  { name: "São Paulo", country: "Brazil", timeZone: "America/Sao_Paulo" },
-  { name: "Rio de Janeiro", country: "Brazil", timeZone: "America/Sao_Paulo" },
-  { name: "Lagos", country: "Nigeria", timeZone: "Africa/Lagos" },
-  { name: "Accra", country: "Ghana", timeZone: "Africa/Accra" },
-  { name: "Nairobi", country: "Kenya", timeZone: "Africa/Nairobi" },
-  { name: "Johannesburg", country: "South Africa", timeZone: "Africa/Johannesburg" },
-  { name: "Cairo", country: "Egypt", timeZone: "Africa/Cairo" },
-  { name: "Casablanca", country: "Morocco", timeZone: "Africa/Casablanca" },
-];
+import { cities } from "./data/cities";
+import AboutPage from "./pages/AboutPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
+import ContactPage from "./pages/ContactPage";
+import Footer from "./components/Footer";
 
 function getTime(timeZone) {
   return new Intl.DateTimeFormat("en-US", {
@@ -124,151 +79,57 @@ useEffect(() => {
   };
 
   return (
-  <Routes>
+  <>
+    <Header />
+    <Routes>
     <Route
-      path="/"
-      element={
-  
-        <div style={styles.page}>
-      <Header />
-
-      <main style={styles.main}>
-        <section style={styles.hero}>
-          <p style={styles.badge}>LIVE GLOBAL TIME</p>
-
-          <h1 style={styles.title}>
-            Global Time.
-            <br />
-            Simplified.
-          </h1>
-
-          <p style={styles.subtitle}>
-            Track live time across the world instantly with beautiful real-time
-            clocks and city comparisons.
-          </p>
-        </section>
-
-        <section style={styles.featureCard}>
-          <p style={styles.cityLabel}>Toronto</p>
-          <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
-          <p style={styles.dateText}>{getDate("America/Toronto")}</p>
-        </section>
-
-        <div style={styles.searchWrap}>
-          <input
-            style={styles.search}
-            placeholder="Search cities..."
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-
-          {suggestions.length > 0 && (
-            <div style={styles.dropdown}>
-              {suggestions.map((city) => (
-                <button
-                  key={city.name}
-                  style={styles.suggestion}
-                  onClick={() => addCity(city)}
-                >
-                  <span>
-                    <strong>{city.name}</strong>
-                    <small style={styles.suggestionCountry}>
-                      {city.country}
-                    </small>
-                  </span>
-
-                  <span style={styles.suggestionTime}>
-                    {getTime(city.timeZone)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {search.trim() !== "" && suggestions.length === 0 && (
-            <div style={styles.dropdown}>
-              <div style={styles.noResult}>No cities found</div>
-            </div>
-          )}
-        </div>
-
-        {selectedCities.length > 0 && (
-          <>
-            <div style={styles.sectionHeader}>
-              <p style={styles.sectionBadge}>SELECTED CITIES</p>
-              <h2 style={styles.sectionTitle}>Your world clock dashboard</h2>
-            </div>
-
-            <section style={styles.grid}>
-              {selectedCities.map((city) => (
-                <div
-  key={city.name}
-  style={styles.selectedCard}
-  onClick={() =>
-    navigate(`/time-in/${city.name.toLowerCase().replaceAll(" ", "-")}`)
+  path="/"
+  element={
+    <HomePage
+      cities={cities}
+      search={search}
+      setSearch={setSearch}
+      suggestions={suggestions}
+      selectedCities={selectedCities}
+      addCity={addCity}
+      removeCity={removeCity}
+      getTime={getTime}
+      getDate={getDate}
+      navigate={navigate}
+      styles={styles}
+    />
   }
->
-                  <button
-                    style={styles.removeButton}
-                    onClick={(e) => {
-  e.stopPropagation();
-  removeCity(city.name);
-}}
-                  >
-                    ×
-                  </button>
+/>
+<Route
+  path="/cities"
+  element={<CitiesPage />}
+/>
 
-                  <h3 style={styles.cardTitle}>{city.name}</h3>
-                  <p style={styles.country}>{city.country}</p>
-                  <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
-                  <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
-                  <p style={styles.zone}>{city.timeZone}</p>
-                </div>
-              ))}
-            </section>
-          </>
-        )}
-
-        <div style={styles.sectionHeader}>
-          <p style={styles.sectionBadge}>POPULAR GLOBAL CITIES</p>
-          <h2 style={styles.sectionTitle}>Explore live city times</h2>
-        </div>
-
-        <section style={styles.grid}>
-          {filteredCities.map((city) => (
-            <div
-              key={city.name}
-              style={styles.card}
-              className="city-card"
-              onClick={() =>
-  navigate(`/time-in/${city.name.toLowerCase().replaceAll(" ", "-")}`)
-}
-            >
-              <div>
-                <h3 style={styles.cardTitle} className="city-name">
-                  {city.name}
-                </h3>
-                <p style={styles.country}>{city.country}</p>
-              </div>
-
-              <div style={styles.cardTime}>{getTime(city.timeZone)}</div>
-              <p style={styles.cardDate}>{getDate(city.timeZone)}</p>
-              <p style={styles.zone}>{city.timeZone}</p>
-            </div>
-          ))}
-        </section>
-      </main>
-    </div>
-            }
-      />
-
-      <Route
+<Route
   path="/time-in/:city"
   element={<CityPage />}
 />
-    </Routes>
-  );
+
+<Route
+  path="/city/:city"
+  element={<CityPage />}
+/>
+<Route
+  path="/time-difference"
+  element={<TimeDifferencePage />}
+/>
+<Route
+  path="/compare/:fromCity/:toCity"
+  element={<ComparisonPage />}
+/>
+<Route path="/about" element={<AboutPage />} />
+<Route path="/privacy" element={<PrivacyPage />} />
+<Route path="/terms" element={<TermsPage />} />
+<Route path="/contact" element={<ContactPage />} />
+       </Routes>
+       <Footer />
+  </>
+);
 }
 
 const styles = {
@@ -433,12 +294,14 @@ const styles = {
   },
 
   card: {
-    padding: "28px",
-    borderRadius: "24px",
-    background: "rgba(255,255,255,0.055)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
-  },
+  padding: "28px",
+  borderRadius: "24px",
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
+  transition: "all 0.25s ease",
+  cursor: "pointer",
+},
 
   selectedCard: {
     position: "relative",
@@ -447,9 +310,22 @@ const styles = {
     background: "rgba(103,232,249,0.08)",
     border: "1px solid rgba(103,232,249,0.3)",
     boxShadow: "0 20px 70px rgba(103,232,249,0.12)",
+    transition: "all 0.25s ease",
     cursor: "pointer",
   },
-
+addButton: {
+  marginTop: "16px",
+  padding: "8px 14px",
+  borderRadius: "999px",
+  border: "1px solid rgba(103,232,249,0.35)",
+  background: "rgba(103,232,249,0.12)",
+  color: "#67e8f9",
+  fontSize: "0.9rem",
+  fontWeight: "700",
+  cursor: "pointer",
+  transition: "all 0.25s ease",
+  boxShadow: "0 0 18px rgba(103,232,249,0.18)",
+},
   removeButton: {
     position: "absolute",
     top: "18px",
@@ -490,6 +366,25 @@ const styles = {
     color: "#6f7b91",
     fontSize: "0.85rem",
   },  
+  searchSection: {
+  width: "100%",
+  maxWidth: "700px",
+  marginTop: "28px",
+  display: "flex",
+  justifyContent: "center",
+},
+
+searchInput: {
+  width: "100%",
+  padding: "18px 22px",
+  borderRadius: "18px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
+  color: "white",
+  fontSize: "1rem",
+  outline: "none",
+  backdropFilter: "blur(12px)",
+},
 };
 
 export default App;
