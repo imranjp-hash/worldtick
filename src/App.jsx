@@ -13,6 +13,8 @@ import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import ContactPage from "./pages/ContactPage";
 import Footer from "./components/Footer";
+import CountriesPage from "./pages/CountriesPage";
+import CountryPage from "./pages/CountryPage";
 
 function getTime(timeZone) {
   return new Intl.DateTimeFormat("en-US", {
@@ -103,6 +105,14 @@ useEffect(() => {
 <Route
   path="/cities"
   element={<CitiesPage />}
+/>
+<Route
+  path="/countries"
+  element={<CountriesPage />}
+/>
+<Route
+  path="/country/:countrySlug"
+  element={<CountryPage />}
 />
 
 <Route

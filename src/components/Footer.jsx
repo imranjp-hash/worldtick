@@ -15,6 +15,7 @@ export default function Footer() {
           <Link style={styles.link} to="/privacy">Privacy</Link>
           <Link style={styles.link} to="/terms">Terms</Link>
           <Link style={styles.link} to="/cities">Browse Cities</Link>
+          <Link style={styles.link} to="/countries">Browse Countries</Link>
           <Link style={styles.link} to="/time-difference">Time Difference</Link>
         </div>
       </div>

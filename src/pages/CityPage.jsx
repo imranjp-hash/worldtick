@@ -2,6 +2,7 @@ import React from "react";
 import { useParams } from "react-router-dom";
 import { cities } from "../data/cities";
 import { Link } from "react-router-dom";
+import { countrySlug, getCountryBySlug } from "../data/countries";
 
 
 
@@ -86,6 +87,8 @@ export default function CityPage() {
     );
   }
 
+  const eligibleCountry = getCountryBySlug(countrySlug(cityData.country));
+
   const previewCities = cities
   .filter(
     (city) =>
@@ -141,7 +144,20 @@ export default function CityPage() {
             fontSize: "1.2rem",
           }}
         >
-          {cityData.country}
+          {eligibleCountry ? (
+            <Link
+              to={`/country/${eligibleCountry.slug}`}
+              style={{
+                color: "#67e8f9",
+                textDecoration: "none",
+                fontWeight: 800,
+              }}
+            >
+              {cityData.country}
+            </Link>
+          ) : (
+            cityData.country
+          )}
         </p>
 
         <div
@@ -237,6 +253,20 @@ transition: "all 0.25s ease",
         </Link>
       ))}
   </div>
+  {eligibleCountry && (
+    <Link
+      to={`/country/${eligibleCountry.slug}`}
+      style={{
+        display: "inline-block",
+        marginTop: "24px",
+        color: "#67e8f9",
+        fontWeight: 800,
+        textDecoration: "none",
+      }}
+    >
+      View all cities in {cityData.country}
+    </Link>
+  )}
   <div
   style={{
     maxWidth: "1000px",
