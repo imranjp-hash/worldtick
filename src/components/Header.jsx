@@ -10,11 +10,9 @@ const Header = () => {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Browse Cities', path: '/cities' },
-    { label: 'Time Difference Calculator', path: '/time-difference' },
+    { label: 'Browse Countries', path: '/countries' },
+    { label: 'Time Difference', path: '/time-difference' },
     { label: 'About', path: '/about' },
-    { label: 'Contact', path: '/contact' },
-    { label: 'Privacy', path: '/privacy' },
-    { label: 'Terms', path: '/terms' },
   ];
 
   const getLinkClass = (path) => {
