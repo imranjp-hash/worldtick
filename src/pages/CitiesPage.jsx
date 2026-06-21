@@ -1,8 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 
 export default function CitiesPage() {
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredCities = normalizedSearch
+    ? cities.filter((city) =>
+        [city.name, city.country, city.timezone].some((value) =>
+          value.toLowerCase().includes(normalizedSearch)
+        )
+      )
+    : cities;
+
   return (
     <div
       style={{
@@ -36,6 +46,49 @@ export default function CitiesPage() {
           </p>
         </div>
 
+        <div style={styles.searchSection}>
+          <label htmlFor="city-search" style={styles.searchLabel}>
+            Search world clocks
+          </label>
+          <div style={styles.searchWrap}>
+            <input
+              id="city-search"
+              type="search"
+              aria-label="Search cities by city name, country, or timezone"
+              placeholder="Search by city, country, or timezone..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              style={styles.searchInput}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                style={styles.clearButton}
+                aria-label="Clear city search"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <p style={styles.resultsText} aria-live="polite">
+            {normalizedSearch
+              ? `${filteredCities.length} ${
+                  filteredCities.length === 1 ? "city" : "cities"
+                } found`
+              : ""}
+          </p>
+        </div>
+
+        {filteredCities.length === 0 ? (
+          <div style={styles.emptyState} aria-live="polite">
+            <h2 style={styles.emptyTitle}>No cities found</h2>
+            <p style={styles.emptyText}>
+              No cities match “{search.trim()}”. Try another city, country, or
+              timezone.
+            </p>
+          </div>
+        ) : (
         <div
           style={{
             display: "grid",
@@ -43,7 +96,7 @@ export default function CitiesPage() {
             gap: "20px",
           }}
         >
-          {cities.map((city) => (
+          {filteredCities.map((city) => (
             <Link
               key={city.slug}
               to={`/city/${city.slug}`}
@@ -77,7 +130,73 @@ cursor: "pointer",
             </Link>
           ))}
         </div>
+        )}
       </div>
     </div>
   );
 }
+
+const styles = {
+  searchSection: {
+    width: "100%",
+    maxWidth: "680px",
+    margin: "0 auto 38px",
+  },
+  searchLabel: {
+    display: "block",
+    marginBottom: "10px",
+    color: "#cbd5e1",
+    fontWeight: 800,
+  },
+  searchWrap: {
+    position: "relative",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "18px 92px 18px 20px",
+    borderRadius: "18px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    fontSize: "1rem",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  clearButton: {
+    position: "absolute",
+    top: "50%",
+    right: "12px",
+    transform: "translateY(-50%)",
+    padding: "8px 12px",
+    borderRadius: "10px",
+    border: "1px solid rgba(103,232,249,0.3)",
+    background: "rgba(103,232,249,0.1)",
+    color: "#67e8f9",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  resultsText: {
+    minHeight: "22px",
+    margin: "10px 4px 0",
+    color: "#94a3b8",
+    fontSize: "0.92rem",
+  },
+  emptyState: {
+    maxWidth: "680px",
+    margin: "20px auto 0",
+    padding: "34px",
+    borderRadius: "22px",
+    background: "rgba(255,255,255,0.055)",
+    border: "1px solid rgba(103,232,249,0.2)",
+    textAlign: "center",
+  },
+  emptyTitle: {
+    margin: "0 0 10px",
+    fontSize: "1.5rem",
+  },
+  emptyText: {
+    margin: 0,
+    color: "#9ca7ba",
+    lineHeight: 1.7,
+  },
+};

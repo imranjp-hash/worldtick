@@ -1,8 +1,21 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { countries } from "../data/countries";
 
 export default function CountriesPage() {
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredCountries = normalizedSearch
+    ? countries.filter((country) =>
+        [
+          country.name,
+          country.region,
+          country.countryCode,
+          ...country.cities.map((city) => city.name),
+        ].some((value) => value.toLowerCase().includes(normalizedSearch))
+      )
+    : countries;
+
   useEffect(() => {
     document.title = "Browse Countries and World Clocks | WorldTick";
 
@@ -29,8 +42,51 @@ export default function CountriesPage() {
         </p>
       </section>
 
+      <section style={styles.searchSection}>
+        <label htmlFor="country-search" style={styles.searchLabel}>
+          Search available countries
+        </label>
+        <div style={styles.searchWrap}>
+          <input
+            id="country-search"
+            type="search"
+            aria-label="Search countries by name, region, country code, or city"
+            placeholder="Search by country, region, code, or city..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={styles.searchInput}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              style={styles.clearButton}
+              aria-label="Clear country search"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <p style={styles.resultsText} aria-live="polite">
+          {normalizedSearch
+            ? `${filteredCountries.length} ${
+                filteredCountries.length === 1 ? "country" : "countries"
+              } found`
+            : ""}
+        </p>
+      </section>
+
+      {filteredCountries.length === 0 ? (
+        <section style={styles.emptyState} aria-live="polite">
+          <h2 style={styles.emptyTitle}>No countries found</h2>
+          <p style={styles.emptyText}>
+            No countries match “{search.trim()}”. Try a country, region, code,
+            or city name.
+          </p>
+        </section>
+      ) : (
       <section style={styles.grid}>
-        {countries.map((country) => (
+        {filteredCountries.map((country) => (
           <Link
             key={country.slug}
             to={`/country/${country.slug}`}
@@ -49,6 +105,7 @@ export default function CountriesPage() {
           </Link>
         ))}
       </section>
+      )}
     </main>
   );
 }
@@ -89,6 +146,68 @@ const styles = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: "20px",
+  },
+  searchSection: {
+    width: "100%",
+    maxWidth: "680px",
+    margin: "0 auto 38px",
+  },
+  searchLabel: {
+    display: "block",
+    marginBottom: "10px",
+    color: "#cbd5e1",
+    fontWeight: 800,
+  },
+  searchWrap: {
+    position: "relative",
+  },
+  searchInput: {
+    width: "100%",
+    padding: "18px 92px 18px 20px",
+    borderRadius: "18px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    fontSize: "1rem",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  clearButton: {
+    position: "absolute",
+    top: "50%",
+    right: "12px",
+    transform: "translateY(-50%)",
+    padding: "8px 12px",
+    borderRadius: "10px",
+    border: "1px solid rgba(103,232,249,0.3)",
+    background: "rgba(103,232,249,0.1)",
+    color: "#67e8f9",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  resultsText: {
+    minHeight: "22px",
+    margin: "10px 4px 0",
+    color: "#94a3b8",
+    fontSize: "0.92rem",
+  },
+  emptyState: {
+    maxWidth: "680px",
+    margin: "20px auto 0",
+    padding: "34px",
+    borderRadius: "22px",
+    background: "rgba(255,255,255,0.055)",
+    border: "1px solid rgba(103,232,249,0.2)",
+    textAlign: "center",
+  },
+  emptyTitle: {
+    margin: "0 0 10px",
+    fontSize: "1.5rem",
+  },
+  emptyText: {
+    margin: 0,
+    color: "#9ca7ba",
+    lineHeight: 1.7,
   },
   card: {
     display: "block",
