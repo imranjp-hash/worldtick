@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getCountryBySlug } from "../data/countries";
+import NotFoundPage from "./NotFoundPage";
+import StructuredData from "../components/StructuredData";
 
 function getTime(timezone) {
   return new Intl.DateTimeFormat("en-US", {
@@ -57,25 +59,24 @@ export default function CountryPage() {
   }, [country]);
 
   if (!country) {
-    return (
-      <main style={styles.notFound}>
-        <div>
-          <p style={styles.badge}>COUNTRY NOT FOUND</p>
-          <h1 style={styles.title}>Country page unavailable</h1>
-          <p style={styles.subtitle}>
-            WorldTick currently creates country pages only for countries with
-            two or more listed cities.
-          </p>
-          <Link to="/countries" style={styles.backLink}>
-            Browse available countries
-          </Link>
-        </div>
-      </main>
-    );
+    return <NotFoundPage />;
   }
+
+  const countryStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Country",
+    name: country.name,
+    url: `https://worldtick.site/country/${country.slug}`,
+    containsPlace: country.cities.map((city) => ({
+      "@type": "City",
+      name: city.name,
+      url: `https://worldtick.site/city/${city.slug}`,
+    })),
+  };
 
   return (
     <main style={styles.page}>
+      <StructuredData data={countryStructuredData} />
       <nav aria-label="Breadcrumb" style={styles.breadcrumb}>
         <Link to="/" style={styles.breadcrumbLink}>
           Home
@@ -101,7 +102,7 @@ export default function CountryPage() {
         {country.cities.map((city) => (
           <Link
             key={city.slug}
-            to={`/time-in/${city.slug}`}
+            to={`/city/${city.slug}`}
             style={styles.card}
           >
             <h2 style={styles.cityName}>{city.name}</h2>
@@ -122,17 +123,6 @@ const styles = {
     background:
       "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
     color: "white",
-    fontFamily: "Inter, Arial, sans-serif",
-  },
-  notFound: {
-    minHeight: "100vh",
-    padding: "80px 22px",
-    background:
-      "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
-    color: "white",
-    display: "grid",
-    placeItems: "center",
-    textAlign: "center",
     fontFamily: "Inter, Arial, sans-serif",
   },
   breadcrumb: {
@@ -167,16 +157,6 @@ const styles = {
     color: "#b8c1d1",
     fontSize: "1.15rem",
     lineHeight: 1.7,
-  },
-  backLink: {
-    display: "inline-block",
-    marginTop: "20px",
-    padding: "13px 22px",
-    borderRadius: "14px",
-    background: "#67e8f9",
-    color: "#06101f",
-    fontWeight: 900,
-    textDecoration: "none",
   },
   grid: {
     width: "100%",

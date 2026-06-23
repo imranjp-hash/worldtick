@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
+import StructuredData from "../components/StructuredData";
 
 export default function CitiesPage() {
   const [search, setSearch] = useState("");
@@ -12,6 +13,19 @@ export default function CitiesPage() {
         )
       )
     : cities;
+  const cityListStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "WorldTick City Directory",
+    url: "https://worldtick.site/cities",
+    numberOfItems: cities.length,
+    itemListElement: cities.map((city, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: city.name,
+      url: `https://worldtick.site/city/${city.slug}`,
+    })),
+  };
 
   return (
     <div
@@ -24,6 +38,7 @@ export default function CitiesPage() {
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
+      <StructuredData data={cityListStructuredData} />
       <div style={{ maxWidth: "1180px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "50px" }}>
           <p

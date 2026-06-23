@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { countries } from "../data/countries";
+import StructuredData from "../components/StructuredData";
 
 export default function CountriesPage() {
   const [search, setSearch] = useState("");
@@ -15,6 +16,19 @@ export default function CountriesPage() {
         ].some((value) => value.toLowerCase().includes(normalizedSearch))
       )
     : countries;
+  const countryListStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "WorldTick Country Directory",
+    url: "https://worldtick.site/countries",
+    numberOfItems: countries.length,
+    itemListElement: countries.map((country, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: country.name,
+      url: `https://worldtick.site/country/${country.slug}`,
+    })),
+  };
 
   useEffect(() => {
     document.title = "Browse Countries and World Clocks | WorldTick";
@@ -34,6 +48,7 @@ export default function CountriesPage() {
 
   return (
     <main style={styles.page}>
+      <StructuredData data={countryListStructuredData} />
       <section style={styles.hero}>
         <p style={styles.badge}>COUNTRY DIRECTORY</p>
         <h1 style={styles.title}>Browse Countries</h1>

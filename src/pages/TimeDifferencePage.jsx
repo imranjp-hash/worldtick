@@ -1,10 +1,21 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
+import StructuredData from "../components/StructuredData";
 
 export default function TimeDifferencePage() {
   const [fromCity, setFromCity] = useState(cities[0]);
   const [toCity, setToCity] = useState(cities[1]);
+  const calculatorStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "WorldTick Time Difference Calculator",
+    url: "https://worldtick.site/time-difference",
+    description:
+      "Compare the current time difference between cities around the world.",
+    applicationCategory: "UtilitiesApplication",
+    operatingSystem: "Web",
+  };
 
   const getOffsetMinutes = (timezone) => {
     const now = new Date();
@@ -57,6 +68,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
+      <StructuredData data={calculatorStructuredData} />
       <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
         <p style={{ color: "#67e8f9", letterSpacing: "0.2em", fontWeight: 700 }}>
           TIME DIFFERENCE CALCULATOR

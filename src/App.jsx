@@ -2,8 +2,8 @@ import TimeDifferencePage from "./pages/TimeDifferencePage";
 import ComparisonPage from "./pages/ComparisonPage";
 import CitiesPage from "./pages/CitiesPage";
 import HomePage from "./pages/HomePage";
-import React, { useState, useEffect } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Navigate, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
 import CityPage from "./pages/CityPage";
 import Header from "./components/Header";
@@ -15,6 +15,7 @@ import ContactPage from "./pages/ContactPage";
 import Footer from "./components/Footer";
 import CountriesPage from "./pages/CountriesPage";
 import CountryPage from "./pages/CountryPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function getTime(timeZone) {
   return new Intl.DateTimeFormat("en-US", {
@@ -33,6 +34,12 @@ function getDate(timeZone) {
     month: "short",
     day: "numeric",
   }).format(new Date());
+}
+
+function LegacyCityRedirect() {
+  const { city } = useParams();
+
+  return <Navigate to={`/city/${city}`} replace />;
 }
 
 function App() {
@@ -117,7 +124,7 @@ useEffect(() => {
 
 <Route
   path="/time-in/:city"
-  element={<CityPage />}
+  element={<LegacyCityRedirect />}
 />
 
 <Route
@@ -136,6 +143,7 @@ useEffect(() => {
 <Route path="/privacy" element={<PrivacyPage />} />
 <Route path="/terms" element={<TermsPage />} />
 <Route path="/contact" element={<ContactPage />} />
+<Route path="*" element={<NotFoundPage />} />
        </Routes>
        <Footer />
   </>

@@ -1,8 +1,10 @@
-import React from "react";
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { cities } from "../data/cities";
 import { Link } from "react-router-dom";
 import { countrySlug, getCountryBySlug } from "../data/countries";
+import NotFoundPage from "./NotFoundPage";
+import StructuredData from "../components/StructuredData";
 
 
 
@@ -69,35 +71,71 @@ export default function CityPage() {
   (c) => c.slug === city?.toLowerCase()
 );
 
+  useEffect(() => {
+    if (!cityData) {
+      return;
+    }
+
+    const cityUrl = `https://worldtick.site/city/${cityData.slug}`;
+    let canonical = document.querySelector('link[rel="canonical"]');
+    let openGraphUrl = document.querySelector('meta[property="og:url"]');
+
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+
+    if (!openGraphUrl) {
+      openGraphUrl = document.createElement("meta");
+      openGraphUrl.setAttribute("property", "og:url");
+      document.head.appendChild(openGraphUrl);
+    }
+
+    canonical.href = cityUrl;
+    openGraphUrl.content = cityUrl;
+  }, [cityData]);
+
   if (!cityData) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#071120",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "2rem",
-        }}
-      >
-        City not found
-      </div>
-    );
+    return <NotFoundPage />;
   }
 
   const eligibleCountry = getCountryBySlug(countrySlug(cityData.country));
+  const cityUrl = `https://worldtick.site/city/${cityData.slug}`;
+  const cityStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "City",
+    name: cityData.name,
+    url: cityUrl,
+    containedInPlace: {
+      "@type": "Country",
+      name: cityData.country,
+    },
+    additionalProperty: {
+      "@type": "PropertyValue",
+      name: "Time zone",
+      value: cityData.timezone,
+    },
+  };
 
-  const previewCities = cities
-  .filter(
-    (city) =>
-      city.slug !== cityData.slug &&
-      ["toronto", "new-york", "london", "dubai", "tokyo", "sydney"].includes(
-        city.slug
-      )
-  )
-  .slice(0, 6);
+  const relatedCities = [
+    ...cities.filter(
+      (city) =>
+        city.country === cityData.country && city.slug !== cityData.slug
+    ),
+    ...cities.filter(
+      (city) =>
+        city.slug !== cityData.slug &&
+        ["toronto", "new-york", "london", "dubai", "tokyo", "sydney"].includes(
+          city.slug
+        )
+    ),
+  ]
+    .filter(
+      (city, index, list) =>
+        list.findIndex((candidate) => candidate.slug === city.slug) === index
+    )
+    .slice(0, 6);
   
   return (
     <div
@@ -110,6 +148,7 @@ export default function CityPage() {
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
+      <StructuredData data={cityStructuredData} />
       <div
         style={{
           maxWidth: "900px",
@@ -217,17 +256,10 @@ export default function CityPage() {
       gap: "18px",
     }}
   >
-    {cities
-      .filter(
-        (city) =>
-          city.country === cityData.country &&
-          city.slug !== cityData.slug
-      )
-      .slice(0, 6)
-      .map((city) => (
+    {relatedCities.map((city) => (
         <Link
           key={city.slug}
-          to={`/time-in/${city.slug}`}
+          to={`/city/${city.slug}`}
           onMouseEnter={(e) => {
   e.currentTarget.style.transform = "translateY(-5px)";
   e.currentTarget.style.boxShadow = "0 14px 35px rgba(103,232,249,0.18)";
@@ -287,6 +319,19 @@ transition: "all 0.25s ease",
   >
     See how {cityData.name} compares with major cities around the world.
   </p>
+
+  <Link
+    to="/time-difference"
+    style={{
+      display: "inline-block",
+      marginBottom: "26px",
+      color: "#67e8f9",
+      fontWeight: 800,
+      textDecoration: "none",
+    }}
+  >
+    Open the time difference calculator
+  </Link>
 
   <div
     style={{

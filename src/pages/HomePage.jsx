@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 export default function HomePage({
   cities,
@@ -13,9 +14,6 @@ export default function HomePage({
   navigate,
   styles,
 }) {
-  const makeCityUrl = (cityName) =>
-    cityName.toLowerCase().replace(/\s+/g, "-");
-
   return (
     <div style={styles.page}>
       <main style={styles.main}>
@@ -35,7 +33,12 @@ export default function HomePage({
         </section>
 
         <section style={styles.featureCard}>
-          <p style={styles.cityLabel}>Toronto</p>
+          <Link
+            to="/city/toronto"
+            style={{ ...styles.cityLabel, textDecoration: "none" }}
+          >
+            Toronto
+          </Link>
           <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
           <p style={styles.dateText}>{getDate("America/Toronto")}</p>
         </section>
@@ -119,6 +122,17 @@ export default function HomePage({
         <section style={styles.sectionHeader}>
           <p style={styles.sectionBadge}>POPULAR CITIES</p>
           <h2 style={styles.sectionTitle}>Explore world clocks</h2>
+          <div style={directoryLinksStyle}>
+            <Link to="/cities" style={directoryLinkStyle}>
+              Browse all cities
+            </Link>
+            <Link to="/countries" style={directoryLinkStyle}>
+              Browse countries
+            </Link>
+            <Link to="/time-difference" style={directoryLinkStyle}>
+              Time difference
+            </Link>
+          </div>
         </section>
 
         <section style={styles.grid}>
@@ -136,9 +150,17 @@ onMouseLeave={(e) => {
   e.currentTarget.style.boxShadow = "0 20px 50px rgba(0,0,0,0.28)";
   e.currentTarget.style.border = "1px solid rgba(255,255,255,0.1)";
 }}
-              onClick={() => navigate(`/city/${makeCityUrl(city.name)}`)}
+              onClick={() => navigate(`/city/${city.slug}`)}
             >
-              <h3 style={styles.cardTitle}>{city.name}</h3>
+              <h3 style={styles.cardTitle}>
+                <Link
+                  to={`/city/${city.slug}`}
+                  onClick={(event) => event.stopPropagation()}
+                  style={{ color: "inherit", textDecoration: "none" }}
+                >
+                  {city.name}
+                </Link>
+              </h3>
               <p style={styles.country}>{city.country}</p>
               <div style={styles.cardTime}>{getTime(city.timezone)}</div>
               <p style={styles.cardDate}>{getDate(city.timezone)}</p>
@@ -217,3 +239,17 @@ onMouseLeave={(e) => {
     </div>
   );
 }
+
+const directoryLinksStyle = {
+  marginTop: "20px",
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  gap: "16px",
+};
+
+const directoryLinkStyle = {
+  color: "#67e8f9",
+  fontWeight: 800,
+  textDecoration: "none",
+};
