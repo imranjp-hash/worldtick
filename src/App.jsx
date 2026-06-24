@@ -180,7 +180,7 @@ const styles = {
   },
 
   title: {
-    fontSize: "clamp(3rem, 7vw, 6rem)",
+    fontSize: "clamp(2.45rem, 7vw, 6rem)",
     lineHeight: 1,
     margin: "18px 0",
   },
@@ -211,7 +211,7 @@ const styles = {
   },
 
   mainClock: {
-    fontSize: "clamp(3rem, 8vw, 5rem)",
+    fontSize: "clamp(2.55rem, 8vw, 5rem)",
     margin: "18px 0",
     letterSpacing: "0.03em",
   },

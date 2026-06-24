@@ -147,7 +147,7 @@ const styles = {
   },
   title: {
     margin: "16px 0",
-    fontSize: "clamp(2.5rem, 6vw, 4.5rem)",
+    fontSize: "clamp(2.2rem, 6vw, 4.5rem)",
   },
   subtitle: {
     color: "#b8c1d1",

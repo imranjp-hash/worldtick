@@ -74,7 +74,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
           TIME DIFFERENCE CALCULATOR
         </p>
 
-        <h1 style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)", margin: "18px 0" }}>
+        <h1 style={{ fontSize: "clamp(2.2rem, 6vw, 4.5rem)", margin: "18px 0" }}>
           Compare Time Between Cities
         </h1>
 

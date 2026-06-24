@@ -52,7 +52,7 @@ export default function CitiesPage() {
             WORLD CITY DIRECTORY
           </p>
 
-          <h1 style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)", margin: "16px 0" }}>
+          <h1 style={{ fontSize: "clamp(2.2rem, 6vw, 4.5rem)", margin: "16px 0" }}>
             Browse World Clocks
           </h1>
 

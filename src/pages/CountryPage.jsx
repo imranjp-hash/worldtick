@@ -152,7 +152,7 @@ const styles = {
   },
   title: {
     margin: "16px 0",
-    fontSize: "clamp(2.5rem, 6vw, 4.7rem)",
+    fontSize: "clamp(2.2rem, 6vw, 4.7rem)",
     overflowWrap: "anywhere",
   },
   subtitle: {

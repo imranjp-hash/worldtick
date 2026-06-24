@@ -144,7 +144,7 @@ export default function CityPage() {
         background:
           "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
         color: "white",
-        padding: "clamp(44px, 8vw, 60px) clamp(16px, 5vw, 20px)",
+        padding: "clamp(38px, 8vw, 60px) clamp(16px, 5vw, 20px)",
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
@@ -169,7 +169,7 @@ export default function CityPage() {
 
         <h1
           style={{
-            fontSize: "clamp(2.6rem, 14vw, 4rem)",
+            fontSize: "clamp(2.2rem, 13vw, 4rem)",
             lineHeight: 1.05,
             marginTop: "20px",
             marginBottom: "10px",
@@ -203,17 +203,17 @@ export default function CityPage() {
 
         <div
           style={{
-            marginTop: "50px",
+            marginTop: "38px",
             background: "rgba(255,255,255,0.05)",
             border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: "28px",
-            padding: "clamp(34px, 8vw, 50px) clamp(16px, 6vw, 30px)",
+            padding: "clamp(26px, 7vw, 50px) clamp(14px, 5vw, 30px)",
             backdropFilter: "blur(12px)",
           }}
         >
           <div
             style={{
-              fontSize: "clamp(2.45rem, 11vw, 5rem)",
+              fontSize: "clamp(2.15rem, 10vw, 5rem)",
               fontWeight: "800",
               letterSpacing: "0.02em",
               lineHeight: 1.1,
@@ -225,8 +225,8 @@ export default function CityPage() {
 
           <div
             style={{
-              marginTop: "25px",
-              fontSize: "1.2rem",
+              marginTop: "20px",
+              fontSize: "clamp(1rem, 4vw, 1.2rem)",
               color: "#c5d5ea",
             }}
           >

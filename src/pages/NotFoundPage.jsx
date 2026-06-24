@@ -72,7 +72,7 @@ const styles = {
   code: {
     margin: 0,
     color: "#67e8f9",
-    fontSize: "clamp(5rem, 18vw, 9rem)",
+    fontSize: "clamp(4rem, 18vw, 9rem)",
     fontWeight: 900,
     lineHeight: 0.9,
     letterSpacing: "-0.06em",
@@ -80,7 +80,7 @@ const styles = {
   },
   title: {
     margin: "26px 0 14px",
-    fontSize: "clamp(2rem, 6vw, 3.4rem)",
+    fontSize: "clamp(1.8rem, 6vw, 3.4rem)",
     lineHeight: 1.1,
     overflowWrap: "anywhere",
   },

@@ -25,8 +25,8 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-[#0F172A]/85 backdrop-blur-md">
-      <div className="w-full px-4 md:px-6 lg:px-8 py-5 md:py-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="mobileHeaderShell w-full px-4 md:px-6 lg:px-8 py-5 md:py-6">
+        <div className="mobileHeaderRow flex items-center justify-between gap-4">
           <button
   className="mobileHeaderButton flex items-center justify-center text-slate-300 hover:text-white transition p-2"
   onClick={() => setMenuOpen(!menuOpen)}
@@ -44,7 +44,7 @@ const Header = () => {
             <img
               src="https://res.cloudinary.com/dguinb6up/image/upload/v1775780861/worldtick-logo-premium_dkh2gu.svg"
               alt="WorldTick"
-              className="h-14 sm:h-16 md:h-20 lg:h-[88px] w-auto object-contain transition-all duration-300 hover:scale-105"
+              className="worldtickHeaderLogo h-14 sm:h-16 md:h-20 lg:h-[88px] w-auto object-contain transition-all duration-300 hover:scale-105"
             />
           </Link>
 <nav
@@ -114,10 +114,10 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
           top: 0,
           left: 0,
           height: "100vh",
-          width: "min(320px, 100vw)",
+          width: "min(320px, 84vw)",
           background: "#071120",
           borderRight: "1px solid rgba(255,255,255,0.1)",
-          padding: "88px 20px 24px",
+          padding: "76px 20px 24px",
           zIndex: 60,
           overflowY: "auto",
           overflowX: "hidden",
@@ -129,13 +129,13 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
             alt="WorldTick"
             style={{
   display: "block",
-  width: "min(210px, 100%)",
+  width: "min(184px, 100%)",
   height: "auto",
 }}
           />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           {navLinks.map((link) => (
             <Link
               key={link.path}
@@ -144,7 +144,7 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
               style={{
                 color: "white",
                 textDecoration: "none",
-                fontSize: "1.35rem",
+                fontSize: "1.22rem",
 fontWeight: 700,
               }}
             >
@@ -166,15 +166,49 @@ fontWeight: 700,
     display: none !important;
     position: relative;
     z-index: 70;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 999px;
+  }
+
+  .mobileHeaderRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   @media (max-width: 900px) {
+    .mobileHeaderShell {
+      padding-top: 10px !important;
+      padding-bottom: 10px !important;
+    }
+
+    .worldtickHeaderLogo {
+      width: min(220px, calc(100vw - 104px)) !important;
+      height: auto !important;
+      max-height: 42px;
+    }
+
     .desktopHeaderNav {
       display: none !important;
     }
 
     .mobileHeaderButton {
       display: flex !important;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .mobileHeaderShell {
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+    }
+
+    .worldtickHeaderLogo {
+      width: min(208px, calc(100vw - 92px)) !important;
+      height: auto !important;
+      max-height: 40px;
     }
   }
 `}</style>
