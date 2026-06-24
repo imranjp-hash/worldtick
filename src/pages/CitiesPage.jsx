@@ -34,7 +34,7 @@ export default function CitiesPage() {
         background:
           "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
         color: "white",
-        padding: "80px 22px",
+        padding: "clamp(56px, 10vw, 80px) clamp(16px, 5vw, 22px)",
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
@@ -107,7 +107,7 @@ export default function CitiesPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
             gap: "20px",
           }}
         >
@@ -127,7 +127,7 @@ onMouseLeave={(e) => {
 }}
               style={{
                 display: "block",
-                padding: "24px",
+                padding: "clamp(20px, 6vw, 24px)",
                 borderRadius: "20px",
                 background: "rgba(255,255,255,0.055)",
                 border: "1px solid rgba(255,255,255,0.1)",
@@ -139,7 +139,7 @@ cursor: "pointer",
             >
               <h2 style={{ margin: 0, fontSize: "1.3rem" }}>{city.name}</h2>
               <p style={{ color: "#9ca7ba", marginTop: "8px" }}>{city.country}</p>
-              <p style={{ color: "#67e8f9", fontSize: "0.85rem" }}>
+              <p style={{ color: "#67e8f9", fontSize: "0.85rem", overflowWrap: "anywhere" }}>
                 {city.timezone}
               </p>
             </Link>
@@ -176,6 +176,7 @@ const styles = {
     fontSize: "1rem",
     outline: "none",
     boxSizing: "border-box",
+    minWidth: 0,
   },
   clearButton: {
     position: "absolute",
@@ -199,7 +200,7 @@ const styles = {
   emptyState: {
     maxWidth: "680px",
     margin: "20px auto 0",
-    padding: "34px",
+    padding: "clamp(24px, 7vw, 34px)",
     borderRadius: "22px",
     background: "rgba(255,255,255,0.055)",
     border: "1px solid rgba(103,232,249,0.2)",

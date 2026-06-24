@@ -128,7 +128,7 @@ export default function CountriesPage() {
 const styles = {
   page: {
     minHeight: "100vh",
-    padding: "80px 22px",
+    padding: "clamp(56px, 10vw, 80px) clamp(16px, 5vw, 22px)",
     background:
       "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
     color: "white",
@@ -159,7 +159,7 @@ const styles = {
     maxWidth: "1180px",
     margin: "0 auto",
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
     gap: "20px",
   },
   searchSection: {
@@ -186,6 +186,7 @@ const styles = {
     fontSize: "1rem",
     outline: "none",
     boxSizing: "border-box",
+    minWidth: 0,
   },
   clearButton: {
     position: "absolute",
@@ -209,7 +210,7 @@ const styles = {
   emptyState: {
     maxWidth: "680px",
     margin: "20px auto 0",
-    padding: "34px",
+    padding: "clamp(24px, 7vw, 34px)",
     borderRadius: "22px",
     background: "rgba(255,255,255,0.055)",
     border: "1px solid rgba(103,232,249,0.2)",
@@ -226,7 +227,7 @@ const styles = {
   },
   card: {
     display: "block",
-    padding: "26px",
+    padding: "clamp(21px, 6vw, 26px)",
     borderRadius: "22px",
     background: "rgba(255,255,255,0.055)",
     border: "1px solid rgba(255,255,255,0.1)",
@@ -239,6 +240,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     gap: "16px",
+    flexWrap: "wrap",
   },
   code: {
     color: "#67e8f9",
@@ -252,6 +254,7 @@ const styles = {
   countryName: {
     margin: "28px 0 8px",
     fontSize: "1.45rem",
+    overflowWrap: "anywhere",
   },
   region: {
     margin: 0,

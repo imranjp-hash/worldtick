@@ -144,7 +144,7 @@ export default function CityPage() {
         background:
           "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
         color: "white",
-        padding: "60px 20px",
+        padding: "clamp(44px, 8vw, 60px) clamp(16px, 5vw, 20px)",
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
@@ -169,9 +169,11 @@ export default function CityPage() {
 
         <h1
           style={{
-            fontSize: "4rem",
+            fontSize: "clamp(2.6rem, 14vw, 4rem)",
+            lineHeight: 1.05,
             marginTop: "20px",
             marginBottom: "10px",
+            overflowWrap: "anywhere",
           }}
         >
           {cityData.name}
@@ -205,15 +207,17 @@ export default function CityPage() {
             background: "rgba(255,255,255,0.05)",
             border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: "28px",
-            padding: "50px 30px",
+            padding: "clamp(34px, 8vw, 50px) clamp(16px, 6vw, 30px)",
             backdropFilter: "blur(12px)",
           }}
         >
           <div
             style={{
-              fontSize: "5rem",
+              fontSize: "clamp(2.45rem, 11vw, 5rem)",
               fontWeight: "800",
-              letterSpacing: "0.05em",
+              letterSpacing: "0.02em",
+              lineHeight: 1.1,
+              overflowWrap: "anywhere",
             }}
           >
             {getTime(cityData.timezone)}
@@ -230,11 +234,12 @@ export default function CityPage() {
           </div>
 
           <div
-            style={{
-              marginTop: "20px",
-              color: "#6f7b91",
-            }}
-          >
+          style={{
+            marginTop: "20px",
+            color: "#6f7b91",
+            overflowWrap: "anywhere",
+          }}
+        >
             {cityData.timezone}
           </div>
         </div>
@@ -252,7 +257,7 @@ export default function CityPage() {
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
       gap: "18px",
     }}
   >
@@ -336,7 +341,7 @@ transition: "all 0.25s ease",
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+      gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
       gap: "18px",
     }}
   >
@@ -396,6 +401,7 @@ fontWeight: "700",
     style={{
       fontSize: "0.9rem",
       color: "#9ca7ba",
+      overflowWrap: "anywhere",
     }}
   >
     {getDifferenceText(cityData, city)
@@ -432,7 +438,7 @@ fontWeight: "700",
   <div
     style={{
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
       gap: "18px",
     }}
   >
@@ -468,6 +474,7 @@ onMouseLeave={(e) => {
             fontWeight: 900,
             cursor: "pointer",
             transition: "all 0.25s ease",
+            overflowWrap: "anywhere",
           }}
         >
           {cityData.name} → {city.name}

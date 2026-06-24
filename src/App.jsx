@@ -161,7 +161,7 @@ const styles = {
  
 
   main: {
-    padding: "80px 22px",
+    padding: "clamp(56px, 10vw, 80px) clamp(16px, 5vw, 22px)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
@@ -196,7 +196,7 @@ const styles = {
     marginTop: "60px",
     width: "100%",
     maxWidth: "620px",
-    padding: "42px",
+    padding: "clamp(28px, 8vw, 42px)",
     borderRadius: "28px",
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(255,255,255,0.1)",
@@ -307,12 +307,12 @@ const styles = {
     width: "100%",
     maxWidth: "1180px",
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
     gap: "22px",
   },
 
   card: {
-  padding: "28px",
+  padding: "clamp(22px, 6vw, 28px)",
   borderRadius: "24px",
   background: "rgba(255,255,255,0.055)",
   border: "1px solid rgba(255,255,255,0.1)",
@@ -323,7 +323,7 @@ const styles = {
 
   selectedCard: {
     position: "relative",
-    padding: "28px",
+    padding: "clamp(22px, 6vw, 28px)",
     borderRadius: "24px",
     background: "rgba(103,232,249,0.08)",
     border: "1px solid rgba(103,232,249,0.3)",
@@ -369,7 +369,7 @@ addButton: {
   },
 
   cardTime: {
-    fontSize: "2.25rem",
+    fontSize: "clamp(1.9rem, 9vw, 2.25rem)",
     fontWeight: 800,
     marginTop: "30px",
     letterSpacing: "0.03em",

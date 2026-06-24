@@ -84,6 +84,7 @@ export default function HomePage({
       fontWeight: 800,
       cursor: "pointer",
       fontSize: "1rem",
+      whiteSpace: "normal",
     }}
   >
     Open Time Difference Calculator

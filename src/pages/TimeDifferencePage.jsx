@@ -64,7 +64,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
         background:
           "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
         color: "white",
-        padding: "80px 22px",
+        padding: "clamp(56px, 10vw, 80px) clamp(16px, 5vw, 22px)",
         fontFamily: "Inter, Arial, sans-serif",
       }}
     >
@@ -85,7 +85,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
             gap: "22px",
             marginBottom: "38px",
           }}
@@ -106,6 +106,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
                 background: "#0f1d33",
                 color: "white",
                 border: "1px solid rgba(255,255,255,0.15)",
+                minWidth: 0,
               }}
             >
               {cities.map((city) => (
@@ -132,6 +133,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
                 background: "#0f1d33",
                 color: "white",
                 border: "1px solid rgba(255,255,255,0.15)",
+                minWidth: 0,
               }}
             >
               {cities.map((city) => (
@@ -163,16 +165,16 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
 </button>
         <div
           style={{
-            padding: "42px",
+            padding: "clamp(28px, 7vw, 42px)",
             borderRadius: "28px",
             background: "rgba(255,255,255,0.06)",
             border: "1px solid rgba(103,232,249,0.25)",
             boxShadow: "0 28px 80px rgba(103,232,249,0.12)",
           }}
         >
-          <h2 style={{ fontSize: "2rem", marginBottom: "16px" }}>{direction}</h2>
+          <h2 style={{ fontSize: "clamp(1.45rem, 7vw, 2rem)", marginBottom: "16px", overflowWrap: "anywhere" }}>{direction}</h2>
 
-          <p style={{ fontSize: "3rem", fontWeight: 800, color: "#67e8f9" }}>
+          <p style={{ fontSize: "clamp(2.25rem, 12vw, 3rem)", fontWeight: 800, color: "#67e8f9" }}>
             {hours}h {minutes}m
           </p>
 
@@ -205,6 +207,7 @@ const toCityTime = new Date().toLocaleTimeString("en-US", {
     color: "#06101f",
     fontWeight: 900,
     textDecoration: "none",
+    whiteSpace: "normal",
   }}
 >
   View Full Comparison Page

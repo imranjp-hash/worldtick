@@ -46,7 +46,7 @@ export default function NotFoundPage() {
 const styles = {
   page: {
     minHeight: "100vh",
-    padding: "72px 22px",
+    padding: "clamp(54px, 10vw, 72px) clamp(16px, 5vw, 22px)",
     display: "grid",
     placeItems: "center",
     background:
@@ -58,7 +58,7 @@ const styles = {
     position: "relative",
     width: "100%",
     maxWidth: "760px",
-    padding: "clamp(42px, 8vw, 76px) clamp(24px, 6vw, 58px)",
+    padding: "clamp(34px, 8vw, 76px) clamp(18px, 6vw, 58px)",
     overflow: "hidden",
     border: "1px solid rgba(103,232,249,0.18)",
     borderRadius: "30px",
@@ -82,6 +82,7 @@ const styles = {
     margin: "26px 0 14px",
     fontSize: "clamp(2rem, 6vw, 3.4rem)",
     lineHeight: 1.1,
+    overflowWrap: "anywhere",
   },
   message: {
     maxWidth: "590px",
@@ -105,6 +106,7 @@ const styles = {
     color: "white",
     fontWeight: 800,
     textDecoration: "none",
+    textAlign: "center",
   },
   primaryLink: {
     borderColor: "#67e8f9",

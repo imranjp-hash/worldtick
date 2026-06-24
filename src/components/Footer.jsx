@@ -29,7 +29,7 @@ const styles = {
   footer: {
     background: "#050914",
     borderTop: "1px solid rgba(103,232,249,0.16)",
-    padding: "56px 22px 36px",
+    padding: "clamp(42px, 8vw, 56px) clamp(16px, 5vw, 22px) 36px",
     color: "white",
     fontFamily: "Inter, Arial, sans-serif",
   },
@@ -40,6 +40,7 @@ const styles = {
     justifyContent: "space-between",
     gap: "28px",
     flexWrap: "wrap",
+    minWidth: 0,
   },
   logo: {
     margin: 0,
@@ -57,12 +58,14 @@ fontSize: "1rem",
     gap: "18px",
     flexWrap: "wrap",
     alignItems: "center",
+    minWidth: 0,
   },
   link: {
     color: "#cbd5e1",
     textDecoration: "none",
     fontWeight: 700,
     fontSize: "0.95rem",
+    overflowWrap: "anywhere",
   },
   copy: {
     maxWidth: "1180px",

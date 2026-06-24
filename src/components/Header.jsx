@@ -31,6 +31,7 @@ const Header = () => {
   className="mobileHeaderButton flex items-center justify-center text-slate-300 hover:text-white transition p-2"
   onClick={() => setMenuOpen(!menuOpen)}
   aria-label="Toggle menu"
+  aria-expanded={menuOpen}
 >
             {menuOpen ? <X size={28} /> : <Menu size={28} />}
           </button>
@@ -113,26 +114,28 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
           top: 0,
           left: 0,
           height: "100vh",
-          width: "320px",
+          width: "min(320px, 100vw)",
           background: "#071120",
           borderRight: "1px solid rgba(255,255,255,0.1)",
-          padding: "28px 24px",
-          zIndex: 50,
+          padding: "88px 20px 24px",
+          zIndex: 60,
+          overflowY: "auto",
+          overflowX: "hidden",
         }}
       >
-        <div style={{ marginBottom: "30px" }}>
+        <div style={{ marginBottom: "28px" }}>
           <img
             src="https://res.cloudinary.com/dguinb6up/image/upload/v1775780861/worldtick-logo-premium_dkh2gu.svg"
             alt="WorldTick"
             style={{
-  height: "180px",
-  width: "auto",
-  transform: "scale(1.8)"
+  display: "block",
+  width: "min(210px, 100%)",
+  height: "auto",
 }}
           />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
           {navLinks.map((link) => (
             <Link
               key={link.path}
@@ -156,20 +159,22 @@ fontWeight: 700,
       </div>
       <style>{`
   .desktopHeaderNav {
-    display: flex;
+    display: flex !important;
   }
 
   .mobileHeaderButton {
-    display: none;
+    display: none !important;
+    position: relative;
+    z-index: 70;
   }
 
   @media (max-width: 900px) {
     .desktopHeaderNav {
-      display: none;
+      display: none !important;
     }
 
     .mobileHeaderButton {
-      display: flex;
+      display: flex !important;
     }
   }
 `}</style>

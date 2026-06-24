@@ -119,7 +119,7 @@ export default function CountryPage() {
 const styles = {
   page: {
     minHeight: "100vh",
-    padding: "58px 22px 90px",
+    padding: "clamp(44px, 8vw, 58px) clamp(16px, 5vw, 22px) clamp(70px, 12vw, 90px)",
     background:
       "radial-gradient(circle at top, #10213d 0%, #071120 45%, #050914 100%)",
     color: "white",
@@ -131,6 +131,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "10px",
+    flexWrap: "wrap",
     color: "#94a3b8",
     fontSize: "0.95rem",
   },
@@ -152,6 +153,7 @@ const styles = {
   title: {
     margin: "16px 0",
     fontSize: "clamp(2.5rem, 6vw, 4.7rem)",
+    overflowWrap: "anywhere",
   },
   subtitle: {
     color: "#b8c1d1",
@@ -163,12 +165,12 @@ const styles = {
     maxWidth: "1180px",
     margin: "0 auto",
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
     gap: "22px",
   },
   card: {
     display: "block",
-    padding: "28px",
+    padding: "clamp(22px, 6vw, 28px)",
     borderRadius: "24px",
     background: "rgba(255,255,255,0.055)",
     border: "1px solid rgba(255,255,255,0.1)",
@@ -183,7 +185,7 @@ const styles = {
   time: {
     margin: "28px 0 10px",
     color: "#67e8f9",
-    fontSize: "2.2rem",
+    fontSize: "clamp(1.9rem, 9vw, 2.2rem)",
     fontWeight: 900,
   },
   date: {
@@ -194,5 +196,6 @@ const styles = {
     margin: "12px 0 0",
     color: "#6f7b91",
     fontSize: "0.86rem",
+    overflowWrap: "anywhere",
   },
 };
