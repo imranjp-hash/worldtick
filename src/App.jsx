@@ -16,6 +16,7 @@ import Footer from "./components/Footer";
 import CountriesPage from "./pages/CountriesPage";
 import CountryPage from "./pages/CountryPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import ScrollToTop from "./components/ScrollToTop";
 
 function getTime(timeZone) {
   return new Intl.DateTimeFormat("en-US", {
@@ -89,6 +90,7 @@ useEffect(() => {
 
   return (
   <>
+    <ScrollToTop />
     <Header />
     <Routes>
     <Route
