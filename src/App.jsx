@@ -17,25 +17,7 @@ import CountriesPage from "./pages/CountriesPage";
 import CountryPage from "./pages/CountryPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ScrollToTop from "./components/ScrollToTop";
-
-function getTime(timeZone) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  }).format(new Date());
-}
-
-function getDate(timeZone) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  }).format(new Date());
-}
+import { formatDateInZone, formatTimeInZone } from "./utils/dateTime";
 
 function LegacyCityRedirect() {
   const { city } = useParams();
@@ -104,8 +86,8 @@ useEffect(() => {
       selectedCities={selectedCities}
       addCity={addCity}
       removeCity={removeCity}
-      getTime={getTime}
-      getDate={getDate}
+      getTime={formatTimeInZone}
+      getDate={formatDateInZone}
       navigate={navigate}
       styles={styles}
     />

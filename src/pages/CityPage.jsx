@@ -5,50 +5,19 @@ import { Link } from "react-router-dom";
 import { countrySlug, getCountryBySlug } from "../data/countries";
 import NotFoundPage from "./NotFoundPage";
 import StructuredData from "../components/StructuredData";
-
-
-
-function getTime(timezone) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  }).format(new Date());
-}
-
-function getDate(timezone) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date());
-}
-
-function getOffsetMinutes(timezone) {
-  const now = new Date();
-
-  const utcDate = new Date(
-    now.toLocaleString("en-US", { timeZone: "UTC" })
-  );
-
-  const cityDate = new Date(
-    now.toLocaleString("en-US", { timeZone: timezone })
-  );
-
-  return (cityDate - utcDate) / 60000;
-}
+import {
+  formatDateInZone,
+  formatTimeInZone,
+  getTimeDifferenceMinutes,
+  splitTimeDifference,
+} from "../utils/dateTime";
 
 function getDifferenceText(fromCity, toCity) {
-  const differenceMinutes =
-    getOffsetMinutes(toCity.timezone) - getOffsetMinutes(fromCity.timezone);
-
-  const absoluteMinutes = Math.abs(differenceMinutes);
-  const hours = Math.floor(absoluteMinutes / 60);
-  const minutes = absoluteMinutes % 60;
+  const differenceMinutes = getTimeDifferenceMinutes(
+    fromCity.timezone,
+    toCity.timezone
+  );
+  const { hours, minutes } = splitTimeDifference(differenceMinutes);
 
   const differenceText =
     minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
@@ -220,7 +189,7 @@ export default function CityPage() {
               overflowWrap: "anywhere",
             }}
           >
-            {getTime(cityData.timezone)}
+            {formatTimeInZone(cityData.timezone)}
           </div>
 
           <div
@@ -230,7 +199,10 @@ export default function CityPage() {
               color: "#c5d5ea",
             }}
           >
-            {getDate(cityData.timezone)}
+            {formatDateInZone(cityData.timezone, new Date(), {
+              month: "long",
+              year: "numeric",
+            })}
           </div>
 
           <div

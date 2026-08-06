@@ -1,6 +1,11 @@
 import React from "react";
 import { Link, useParams } from "react-router-dom";
 import { cities } from "../data/cities";
+import {
+  formatTimeInZone,
+  getTimeDifferenceMinutes,
+  splitTimeDifference,
+} from "../utils/dateTime";
 
 export default function ComparisonPage() {
   const { fromCity, toCity } = useParams();
@@ -26,27 +31,26 @@ export default function ComparisonPage() {
 
   const now = new Date();
 
-  const timeA = now.toLocaleTimeString("en-US", {
-    timeZone: cityA.timezone,
+  const timeA = formatTimeInZone(cityA.timezone, now, {
     hour: "numeric",
     minute: "2-digit",
+    second: undefined,
     hour12: true,
   });
 
-  const timeB = now.toLocaleTimeString("en-US", {
-    timeZone: cityB.timezone,
+  const timeB = formatTimeInZone(cityB.timezone, now, {
     hour: "numeric",
     minute: "2-digit",
+    second: undefined,
     hour12: true,
   });
 
-  const offsetA = getOffsetMinutes(cityA.timezone);
-  const offsetB = getOffsetMinutes(cityB.timezone);
-  const differenceMinutes = offsetB - offsetA;
-
-  const absMinutes = Math.abs(differenceMinutes);
-  const hours = Math.floor(absMinutes / 60);
-  const minutes = absMinutes % 60;
+  const differenceMinutes = getTimeDifferenceMinutes(
+    cityA.timezone,
+    cityB.timezone,
+    now
+  );
+  const { hours, minutes } = splitTimeDifference(differenceMinutes);
 
   const direction =
     differenceMinutes > 0
@@ -108,28 +112,6 @@ export default function ComparisonPage() {
       </section>
     </div>
   );
-}
-
-function getOffsetMinutes(timeZone) {
-  const now = new Date();
-
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "shortOffset",
-  }).formatToParts(now);
-
-  const offsetPart = parts.find((part) => part.type === "timeZoneName")?.value;
-
-  if (!offsetPart || offsetPart === "GMT") return 0;
-
-  const match = offsetPart.match(/GMT([+-]\d{1,2})(?::(\d{2}))?/);
-
-  if (!match) return 0;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2] || 0);
-
-  return hours * 60 + Math.sign(hours) * minutes;
 }
 
 const styles = {

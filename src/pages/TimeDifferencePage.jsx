@@ -2,6 +2,11 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
+import {
+  formatTimeInZone,
+  getTimeDifferenceMinutes,
+  splitTimeDifference,
+} from "../utils/dateTime";
 
 export default function TimeDifferencePage() {
   const [fromCity, setFromCity] = useState(cities[0]);
@@ -17,26 +22,13 @@ export default function TimeDifferencePage() {
     operatingSystem: "Web",
   };
 
-  const getOffsetMinutes = (timezone) => {
-    const now = new Date();
-
-    const utcDate = new Date(
-      now.toLocaleString("en-US", { timeZone: "UTC" })
-    );
-
-    const cityDate = new Date(
-      now.toLocaleString("en-US", { timeZone: timezone })
-    );
-
-    return (cityDate - utcDate) / 60000;
-  };
-
-  const differenceMinutes =
-    getOffsetMinutes(toCity.timezone) - getOffsetMinutes(fromCity.timezone);
-
-  const absoluteMinutes = Math.abs(differenceMinutes);
-  const hours = Math.floor(absoluteMinutes / 60);
-  const minutes = absoluteMinutes % 60;
+  const now = new Date();
+  const differenceMinutes = getTimeDifferenceMinutes(
+    fromCity.timezone,
+    toCity.timezone,
+    now
+  );
+  const { hours, minutes } = splitTimeDifference(differenceMinutes);
 
   const direction =
     differenceMinutes > 0
@@ -44,17 +36,17 @@ export default function TimeDifferencePage() {
       : differenceMinutes < 0
       ? `${toCity.name} is behind ${fromCity.name}`
       : `${toCity.name} and ${fromCity.name} are in the same time zone`;
-const fromCityTime = new Date().toLocaleTimeString("en-US", {
-  timeZone: fromCity.timezone,
+const fromCityTime = formatTimeInZone(fromCity.timezone, now, {
   hour: "numeric",
   minute: "2-digit",
+  second: undefined,
   hour12: true,
 });
 
-const toCityTime = new Date().toLocaleTimeString("en-US", {
-  timeZone: toCity.timezone,
+const toCityTime = formatTimeInZone(toCity.timezone, now, {
   hour: "numeric",
   minute: "2-digit",
+  second: undefined,
   hour12: true,
 });
   return (

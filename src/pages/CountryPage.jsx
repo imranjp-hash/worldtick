@@ -3,26 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { getCountryBySlug } from "../data/countries";
 import NotFoundPage from "./NotFoundPage";
 import StructuredData from "../components/StructuredData";
-
-function getTime(timezone) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  }).format(new Date());
-}
-
-function getDate(timezone) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date());
-}
+import { formatDateInZone, formatTimeInZone } from "../utils/dateTime";
 
 export default function CountryPage() {
   const { countrySlug } = useParams();
@@ -106,8 +87,13 @@ export default function CountryPage() {
             style={styles.card}
           >
             <h2 style={styles.cityName}>{city.name}</h2>
-            <p style={styles.time}>{getTime(city.timezone)}</p>
-            <p style={styles.date}>{getDate(city.timezone)}</p>
+            <p style={styles.time}>{formatTimeInZone(city.timezone)}</p>
+            <p style={styles.date}>
+              {formatDateInZone(city.timezone, new Date(), {
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
             <p style={styles.timezone}>{city.timezone}</p>
           </Link>
         ))}
