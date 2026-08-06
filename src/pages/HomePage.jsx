@@ -11,6 +11,7 @@ export default function HomePage({
   removeCity,
   getTime,
   getDate,
+  now,
   navigate,
   styles,
 }) {
@@ -39,8 +40,8 @@ export default function HomePage({
           >
             Toronto
           </Link>
-          <h2 style={styles.mainClock}>{getTime("America/Toronto")}</h2>
-          <p style={styles.dateText}>{getDate("America/Toronto")}</p>
+          <h2 style={styles.mainClock}>{getTime("America/Toronto", now)}</h2>
+          <p style={styles.dateText}>{getDate("America/Toronto", now)}</p>
         </section>
         <section
   style={{
@@ -113,7 +114,7 @@ export default function HomePage({
             <span style={styles.suggestionCountry}>{city.country}</span>
           </span>
 
-          <span style={styles.suggestionTime}>{getTime(city.timezone)}</span>
+          <span style={styles.suggestionTime}>{getTime(city.timezone, now)}</span>
         </button>
       ))}
     </div>
@@ -163,8 +164,8 @@ onMouseLeave={(e) => {
                 </Link>
               </h3>
               <p style={styles.country}>{city.country}</p>
-              <div style={styles.cardTime}>{getTime(city.timezone)}</div>
-              <p style={styles.cardDate}>{getDate(city.timezone)}</p>
+              <div style={styles.cardTime}>{getTime(city.timezone, now)}</div>
+              <p style={styles.cardDate}>{getDate(city.timezone, now)}</p>
               <p style={styles.zone}>{city.timezone}</p>
               <button
   style={styles.addButton}
@@ -228,8 +229,8 @@ onMouseLeave={(e) => {
 
           <h3 style={styles.cardTitle}>{city.name}</h3>
           <p style={styles.country}>{city.country}</p>
-          <div style={styles.cardTime}>{getTime(city.timezone)}</div>
-          <p style={styles.cardDate}>{getDate(city.timezone)}</p>
+          <div style={styles.cardTime}>{getTime(city.timezone, now)}</div>
+          <p style={styles.cardDate}>{getDate(city.timezone, now)}</p>
           <p style={styles.zone}>{city.timezone}</p>
         </div>
       ))}

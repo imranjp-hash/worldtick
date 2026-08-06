@@ -1,19 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getCountryBySlug } from "../data/countries";
 import NotFoundPage from "./NotFoundPage";
 import StructuredData from "../components/StructuredData";
 import { formatDateInZone, formatTimeInZone } from "../utils/dateTime";
+import useNow from "../hooks/useNow";
 
 export default function CountryPage() {
   const { countrySlug } = useParams();
   const country = getCountryBySlug(countrySlug);
-  const [, setTick] = useState(Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setTick(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const now = useNow();
 
   useEffect(() => {
     if (!country) {
@@ -87,9 +83,9 @@ export default function CountryPage() {
             style={styles.card}
           >
             <h2 style={styles.cityName}>{city.name}</h2>
-            <p style={styles.time}>{formatTimeInZone(city.timezone)}</p>
+            <p style={styles.time}>{formatTimeInZone(city.timezone, now)}</p>
             <p style={styles.date}>
-              {formatDateInZone(city.timezone, new Date(), {
+              {formatDateInZone(city.timezone, now, {
                 month: "long",
                 year: "numeric",
               })}

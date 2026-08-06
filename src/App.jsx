@@ -18,6 +18,7 @@ import CountryPage from "./pages/CountryPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ScrollToTop from "./components/ScrollToTop";
 import { formatDateInZone, formatTimeInZone } from "./utils/dateTime";
+import useNow from "./hooks/useNow";
 
 function LegacyCityRedirect() {
   const { city } = useParams();
@@ -28,19 +29,13 @@ function LegacyCityRedirect() {
 function App() {
   const [search, setSearch] = useState("");
   const navigate = useNavigate();
+  const now = useNow();
   
   const [selectedCities, setSelectedCities] = useState(() => {
   const savedCities = localStorage.getItem('worldtick-selected-cities');
 
   return savedCities ? JSON.parse(savedCities) : [];
 });
-  const [, setTick] = useState(Date.now());
-
-useEffect(() => {
-  const timer = setInterval(() => setTick(Date.now()), 1000);
-  return () => clearInterval(timer);
-}, []);
-
 useEffect(() => {
   localStorage.setItem(
     "worldtick-selected-cities",
@@ -88,6 +83,7 @@ useEffect(() => {
       removeCity={removeCity}
       getTime={formatTimeInZone}
       getDate={formatDateInZone}
+      now={now}
       navigate={navigate}
       styles={styles}
     />

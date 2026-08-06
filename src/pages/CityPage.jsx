@@ -11,11 +11,13 @@ import {
   getTimeDifferenceMinutes,
   splitTimeDifference,
 } from "../utils/dateTime";
+import useNow from "../hooks/useNow";
 
-function getDifferenceText(fromCity, toCity) {
+function getDifferenceText(fromCity, toCity, date) {
   const differenceMinutes = getTimeDifferenceMinutes(
     fromCity.timezone,
-    toCity.timezone
+    toCity.timezone,
+    date
   );
   const { hours, minutes } = splitTimeDifference(differenceMinutes);
 
@@ -35,6 +37,7 @@ function getDifferenceText(fromCity, toCity) {
 
 export default function CityPage() {
   const { city } = useParams();
+  const now = useNow();
 
   const cityData = cities.find(
   (c) => c.slug === city?.toLowerCase()
@@ -189,7 +192,7 @@ export default function CityPage() {
               overflowWrap: "anywhere",
             }}
           >
-            {formatTimeInZone(cityData.timezone)}
+            {formatTimeInZone(cityData.timezone, now)}
           </div>
 
           <div
@@ -199,7 +202,7 @@ export default function CityPage() {
               color: "#c5d5ea",
             }}
           >
-            {formatDateInZone(cityData.timezone, new Date(), {
+            {formatDateInZone(cityData.timezone, now, {
               month: "long",
               year: "numeric",
             })}
@@ -376,7 +379,7 @@ fontWeight: "700",
       overflowWrap: "anywhere",
     }}
   >
-    {getDifferenceText(cityData, city)
+    {getDifferenceText(cityData, city, now)
       .replace(`${city.name} is `, "")
       .replace(` ${cityData.name}`, "")}
     {" →"}

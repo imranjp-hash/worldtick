@@ -7,10 +7,12 @@ import {
   getTimeDifferenceMinutes,
   splitTimeDifference,
 } from "../utils/dateTime";
+import useNow from "../hooks/useNow";
 
 export default function TimeDifferencePage() {
   const [fromCity, setFromCity] = useState(cities[0]);
   const [toCity, setToCity] = useState(cities[1]);
+  const now = useNow();
   const calculatorStructuredData = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -22,7 +24,6 @@ export default function TimeDifferencePage() {
     operatingSystem: "Web",
   };
 
-  const now = new Date();
   const differenceMinutes = getTimeDifferenceMinutes(
     fromCity.timezone,
     toCity.timezone,

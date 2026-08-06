@@ -6,9 +6,11 @@ import {
   getTimeDifferenceMinutes,
   splitTimeDifference,
 } from "../utils/dateTime";
+import useNow from "../hooks/useNow";
 
 export default function ComparisonPage() {
   const { fromCity, toCity } = useParams();
+  const now = useNow();
 
   const cityA = cities.find((city) => city.slug === fromCity);
   const cityB = cities.find((city) => city.slug === toCity);
@@ -28,8 +30,6 @@ export default function ComparisonPage() {
       </div>
     );
   }
-
-  const now = new Date();
 
   const timeA = formatTimeInZone(cityA.timezone, now, {
     hour: "numeric",
