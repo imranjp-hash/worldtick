@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { siteConfig } from "../config/site";
 
 const destinations = [
   { label: "Home", to: "/" },
@@ -10,7 +11,7 @@ const destinations = [
 
 export default function NotFoundPage() {
   useEffect(() => {
-    document.title = "Page Not Found | WorldTick";
+    document.title = `Page Not Found | ${siteConfig.publicSiteName}`;
   }, []);
 
   return (
@@ -20,7 +21,7 @@ export default function NotFoundPage() {
         <h1 style={styles.title}>Page not found</h1>
         <p style={styles.message}>
           The page you’re looking for may have moved, or the address may be
-          incorrect. Choose a destination below to keep exploring WorldTick.
+          incorrect. Choose a destination below to keep exploring {siteConfig.publicSiteName}.
         </p>
 
         <nav aria-label="404 page navigation" style={styles.links}>

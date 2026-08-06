@@ -6,7 +6,7 @@ export default function ContactPage() {
       <div style={styles.card}>
         <div style={styles.badge}>CONTACT US</div>
 
-        <h1 style={styles.title}>Contact WorldTick</h1>
+        <h1 style={styles.title}>Contact {siteConfig.publicSiteName}</h1>
 
         <p style={styles.updated}>
           We'd love to hear from you.
@@ -32,7 +32,7 @@ export default function ContactPage() {
         <h2 style={styles.heading}>Feedback & Suggestions</h2>
 
         <p style={styles.text}>
-          WorldTick is continuously improving. If you have ideas for new
+          {siteConfig.publicSiteName} is continuously improving. If you have ideas for new
           features, additional cities, time tools, or improvements to the user
           experience, we'd be happy to hear from you.
         </p>

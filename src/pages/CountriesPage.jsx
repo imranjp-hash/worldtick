@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { countries } from "../data/countries";
 import StructuredData from "../components/StructuredData";
-import { getSiteUrl } from "../config/site";
+import { getSiteUrl, siteConfig } from "../config/site";
 
 export default function CountriesPage() {
   const [search, setSearch] = useState("");
@@ -20,7 +20,7 @@ export default function CountriesPage() {
   const countryListStructuredData = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "WorldTick Country Directory",
+    name: `${siteConfig.publicSiteName} Country Directory`,
     url: getSiteUrl("/countries"),
     numberOfItems: countries.length,
     itemListElement: countries.map((country, index) => ({
@@ -32,10 +32,10 @@ export default function CountriesPage() {
   };
 
   useEffect(() => {
-    document.title = "Browse Countries and World Clocks | WorldTick";
+    document.title = `Browse Countries and World Clocks | ${siteConfig.publicSiteName}`;
 
     const description =
-      "Explore current local times and time zones by country. Browse live city clocks across countries with multiple WorldTick locations.";
+      `Explore current local times and time zones by country. Browse live city clocks across countries with multiple ${siteConfig.publicSiteName} locations.`;
     let meta = document.querySelector('meta[name="description"]');
 
     if (!meta) {
@@ -54,7 +54,7 @@ export default function CountriesPage() {
         <p style={styles.badge}>COUNTRY DIRECTORY</p>
         <h1 style={styles.title}>Browse Countries</h1>
         <p style={styles.subtitle}>
-          Explore live local times in countries with multiple WorldTick cities.
+          Explore live local times in countries with multiple {siteConfig.publicSiteName} cities.
         </p>
       </section>
 

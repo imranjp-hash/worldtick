@@ -7,6 +7,7 @@ import {
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
+import { siteConfig } from "../config/site";
 
 export default function ComparisonPage() {
   const { fromCity, toCity } = useParams();
@@ -59,7 +60,7 @@ export default function ComparisonPage() {
       ? `${cityB.name} is behind ${cityA.name}`
       : `${cityB.name} and ${cityA.name} are in the same time zone`;
 
-  document.title = `Time Difference Between ${cityA.name} and ${cityB.name} | WorldTick`;
+  document.title = `Time Difference Between ${cityA.name} and ${cityB.name} | ${siteConfig.publicSiteName}`;
 
   return (
     <div style={styles.page}>

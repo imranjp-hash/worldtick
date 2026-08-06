@@ -40,12 +40,12 @@ const Header = () => {
             to="/"
             onClick={() => setMenuOpen(false)}
             className="flex items-center hover:opacity-90 transition-opacity duration-300"
-            aria-label="WorldTick Home"
+            aria-label={`${siteConfig.publicSiteName} Home`}
           >
             <img
               src={siteConfig.brandAssets.logo}
-              alt="WorldTick"
-              className="worldtickHeaderLogo h-14 sm:h-16 md:h-20 lg:h-[88px] w-auto object-contain transition-all duration-300 hover:scale-105"
+              alt={`${siteConfig.publicSiteName} logo`}
+              className="youhoraHeaderLogo h-14 sm:h-16 md:h-20 lg:h-[88px] w-auto object-contain transition-all duration-300 hover:scale-105"
             />
           </Link>
 <nav
@@ -127,7 +127,7 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
         <div style={{ marginBottom: "28px" }}>
           <img
             src={siteConfig.brandAssets.logo}
-            alt="WorldTick"
+            alt={`${siteConfig.publicSiteName} logo`}
             style={{
   display: "block",
   width: "min(184px, 100%)",
@@ -185,7 +185,7 @@ fontWeight: 700,
       padding-bottom: 10px !important;
     }
 
-    .worldtickHeaderLogo {
+    .youhoraHeaderLogo {
       width: min(220px, calc(100vw - 104px)) !important;
       height: auto !important;
       max-height: 42px;
@@ -206,7 +206,7 @@ fontWeight: 700,
       padding-right: 12px !important;
     }
 
-    .worldtickHeaderLogo {
+    .youhoraHeaderLogo {
       width: min(208px, calc(100vw - 92px)) !important;
       height: auto !important;
       max-height: 40px;

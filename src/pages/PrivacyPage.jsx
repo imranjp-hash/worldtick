@@ -11,14 +11,14 @@ export default function PrivacyPage() {
         <p style={styles.updated}>Last Updated: June 2026</p>
 
         <p style={styles.text}>
-          At WorldTick, we respect your privacy and are committed to protecting
+          At {siteConfig.publicSiteName}, we respect your privacy and are committed to protecting
           any information collected through our website.
         </p>
 
         <h2 style={styles.heading}>Information We Collect</h2>
 
         <p style={styles.text}>
-          WorldTick does not require users to create accounts or submit personal
+          {siteConfig.publicSiteName} does not require users to create accounts or submit personal
           information to access core features.
         </p>
 
@@ -31,7 +31,7 @@ export default function PrivacyPage() {
         <h2 style={styles.heading}>Cookies</h2>
 
         <p style={styles.text}>
-          WorldTick may use cookies and similar technologies to improve user
+          {siteConfig.publicSiteName} may use cookies and similar technologies to improve user
           experience, remember preferences, analyze website traffic, and support
           future advertising or analytics services.
         </p>
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
         <h2 style={styles.heading}>Third-Party Links</h2>
 
         <p style={styles.text}>
-          WorldTick may contain links to third-party websites. We are not
+          {siteConfig.publicSiteName} may contain links to third-party websites. We are not
           responsible for the privacy practices or content of external websites.
         </p>
 

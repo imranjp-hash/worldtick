@@ -11,14 +11,14 @@ export default function TermsPage() {
         <p style={styles.updated}>Last Updated: June 2026</p>
 
         <p style={styles.text}>
-          By accessing or using WorldTick, you agree to be bound by these Terms
+          By accessing or using {siteConfig.publicSiteName}, you agree to be bound by these Terms
           of Service.
         </p>
 
         <h2 style={styles.heading}>Use of the Website</h2>
 
         <p style={styles.text}>
-          WorldTick provides real-time time and timezone information for
+          {siteConfig.publicSiteName} provides real-time time and timezone information for
           informational purposes only.
         </p>
 
@@ -55,7 +55,7 @@ export default function TermsPage() {
         <h2 style={styles.heading}>Limitation of Liability</h2>
 
         <p style={styles.text}>
-          WorldTick is provided on an "as is" and "as available" basis without
+          {siteConfig.publicSiteName} is provided on an "as is" and "as available" basis without
           warranties of any kind.
         </p>
 

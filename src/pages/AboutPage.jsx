@@ -1,13 +1,15 @@
+import { siteConfig } from "../config/site";
+
 export default function AboutPage() {
   return (
     <main style={styles.page}>
       <section style={styles.card}>
-        <p style={styles.badge}>ABOUT WORLDTICK</p>
+        <p style={styles.badge}>ABOUT {siteConfig.publicSiteName.toUpperCase()}</p>
 
-        <h1 style={styles.title}>About WorldTick</h1>
+        <h1 style={styles.title}>About {siteConfig.publicSiteName}</h1>
 
         <p style={styles.text}>
-          WorldTick was built with one simple goal: to make global time easy to
+          {siteConfig.publicSiteName} was built with one simple goal: to make global time easy to
           understand, accessible, and beautifully displayed.
         </p>
 
@@ -20,7 +22,7 @@ export default function AboutPage() {
         </p>
 
         <p style={styles.text}>
-          WorldTick provides accurate, real-time clocks for cities around the
+          {siteConfig.publicSiteName} provides accurate, real-time clocks for cities around the
           world, helping users quickly compare time zones and stay synchronized
           across regions.
         </p>
@@ -32,7 +34,9 @@ export default function AboutPage() {
           effortless for anyone, anywhere, to understand time across the world.
         </p>
 
-        <h2 style={styles.heading}>What You Can Do With WorldTick</h2>
+        <h2 style={styles.heading}>
+          What You Can Do With {siteConfig.publicSiteName}
+        </h2>
 
         <ul style={styles.list}>
           <li>View real-time local time in major cities worldwide</li>
@@ -43,7 +47,7 @@ export default function AboutPage() {
         </ul>
 
         <p style={styles.text}>
-          As WorldTick continues to grow, we remain committed to building useful
+          As {siteConfig.publicSiteName} continues to grow, we remain committed to building useful
           tools that help people navigate our increasingly connected world.
         </p>
       </section>

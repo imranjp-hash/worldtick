@@ -5,7 +5,7 @@ import NotFoundPage from "./NotFoundPage";
 import StructuredData from "../components/StructuredData";
 import { formatDateInZone, formatTimeInZone } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
-import { getSiteUrl } from "../config/site";
+import { getSiteUrl, siteConfig } from "../config/site";
 
 export default function CountryPage() {
   const { countrySlug } = useParams();
@@ -14,11 +14,11 @@ export default function CountryPage() {
 
   useEffect(() => {
     if (!country) {
-      document.title = "Country Not Found | WorldTick";
+      document.title = `Country Not Found | ${siteConfig.publicSiteName}`;
       return;
     }
 
-    document.title = `Current Time in ${country.name} – Live City Clocks | WorldTick`;
+    document.title = `Current Time in ${country.name} – Live City Clocks | ${siteConfig.publicSiteName}`;
 
     const cityNames = country.cities
       .slice(0, 3)

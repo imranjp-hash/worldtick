@@ -8,7 +8,7 @@ import {
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
-import { getSiteUrl } from "../config/site";
+import { getSiteUrl, siteConfig } from "../config/site";
 
 export default function TimeDifferencePage() {
   const [fromCity, setFromCity] = useState(cities[0]);
@@ -17,7 +17,7 @@ export default function TimeDifferencePage() {
   const calculatorStructuredData = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "WorldTick Time Difference Calculator",
+    name: `${siteConfig.publicSiteName} Time Difference Calculator`,
     url: getSiteUrl("/time-difference"),
     description:
       "Compare the current time difference between cities around the world.",

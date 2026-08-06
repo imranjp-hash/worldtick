@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
+import { siteConfig } from "../config/site";
 
 export default function Footer() {
   return (
     <footer style={styles.footer}>
       <div style={styles.inner}>
         <div>
-          <h2 style={styles.logo}>WorldTick</h2>
+          <h2 style={styles.logo}>{siteConfig.publicSiteName}</h2>
           <p style={styles.tagline}>Global time made simple.</p>
         </div>
 
@@ -20,7 +21,9 @@ export default function Footer() {
         </div>
       </div>
 
-      <p style={styles.copy}>© 2026 WorldTick. All rights reserved.</p>
+      <p style={styles.copy}>
+        © 2026 {siteConfig.publicSiteName}. All rights reserved.
+      </p>
     </footer>
   );
 }

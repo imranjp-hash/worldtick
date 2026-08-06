@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
-import { getSiteUrl } from "../config/site";
+import { getSiteUrl, siteConfig } from "../config/site";
 
 export default function CitiesPage() {
   const [search, setSearch] = useState("");
@@ -17,7 +17,7 @@ export default function CitiesPage() {
   const cityListStructuredData = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "WorldTick City Directory",
+    name: `${siteConfig.publicSiteName} City Directory`,
     url: getSiteUrl("/cities"),
     numberOfItems: cities.length,
     itemListElement: cities.map((city, index) => ({
