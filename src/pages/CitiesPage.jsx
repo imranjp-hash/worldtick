@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
+import { getSiteUrl } from "../config/site";
 
 export default function CitiesPage() {
   const [search, setSearch] = useState("");
@@ -17,13 +18,13 @@ export default function CitiesPage() {
     "@context": "https://schema.org",
     "@type": "ItemList",
     name: "WorldTick City Directory",
-    url: "https://worldtick.site/cities",
+    url: getSiteUrl("/cities"),
     numberOfItems: cities.length,
     itemListElement: cities.map((city, index) => ({
       "@type": "ListItem",
       position: index + 1,
       name: city.name,
-      url: `https://worldtick.site/city/${city.slug}`,
+      url: getSiteUrl(`/city/${city.slug}`),
     })),
   };
 

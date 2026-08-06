@@ -1,3 +1,5 @@
+import { siteConfig } from "../config/site";
+
 export default function PrivacyPage() {
   return (
     <main style={styles.page}>
@@ -61,7 +63,7 @@ export default function PrivacyPage() {
 
         <p style={styles.text}>
           If you have questions regarding this Privacy Policy, please contact us
-          at: <strong>info@worldtick.site</strong>
+          at: <strong>{siteConfig.contactEmail}</strong>
         </p>
       </section>
     </main>

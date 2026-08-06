@@ -5,6 +5,7 @@ import NotFoundPage from "./NotFoundPage";
 import StructuredData from "../components/StructuredData";
 import { formatDateInZone, formatTimeInZone } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
+import { getSiteUrl } from "../config/site";
 
 export default function CountryPage() {
   const { countrySlug } = useParams();
@@ -43,11 +44,11 @@ export default function CountryPage() {
     "@context": "https://schema.org",
     "@type": "Country",
     name: country.name,
-    url: `https://worldtick.site/country/${country.slug}`,
+    url: getSiteUrl(`/country/${country.slug}`),
     containsPlace: country.cities.map((city) => ({
       "@type": "City",
       name: city.name,
-      url: `https://worldtick.site/city/${city.slug}`,
+      url: getSiteUrl(`/city/${city.slug}`),
     })),
   };
 

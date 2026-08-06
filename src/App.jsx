@@ -19,6 +19,7 @@ import NotFoundPage from "./pages/NotFoundPage";
 import ScrollToTop from "./components/ScrollToTop";
 import { formatDateInZone, formatTimeInZone } from "./utils/dateTime";
 import useNow from "./hooks/useNow";
+import { siteConfig } from "./config/site";
 
 function LegacyCityRedirect() {
   const { city } = useParams();
@@ -32,13 +33,15 @@ function App() {
   const now = useNow();
   
   const [selectedCities, setSelectedCities] = useState(() => {
-  const savedCities = localStorage.getItem('worldtick-selected-cities');
+  const savedCities = localStorage.getItem(
+    siteConfig.storageKeys.selectedCities
+  );
 
   return savedCities ? JSON.parse(savedCities) : [];
 });
 useEffect(() => {
   localStorage.setItem(
-    "worldtick-selected-cities",
+    siteConfig.storageKeys.selectedCities,
     JSON.stringify(selectedCities)
   );
 }, [selectedCities]);

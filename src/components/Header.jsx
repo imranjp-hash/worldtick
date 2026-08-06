@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { siteConfig } from '../config/site';
 
 const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -42,7 +43,7 @@ const Header = () => {
             aria-label="WorldTick Home"
           >
             <img
-              src="https://res.cloudinary.com/dguinb6up/image/upload/v1775780861/worldtick-logo-premium_dkh2gu.svg"
+              src={siteConfig.brandAssets.logo}
               alt="WorldTick"
               className="worldtickHeaderLogo h-14 sm:h-16 md:h-20 lg:h-[88px] w-auto object-contain transition-all duration-300 hover:scale-105"
             />
@@ -125,7 +126,7 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
       >
         <div style={{ marginBottom: "28px" }}>
           <img
-            src="https://res.cloudinary.com/dguinb6up/image/upload/v1775780861/worldtick-logo-premium_dkh2gu.svg"
+            src={siteConfig.brandAssets.logo}
             alt="WorldTick"
             style={{
   display: "block",

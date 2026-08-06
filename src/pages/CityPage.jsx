@@ -12,6 +12,7 @@ import {
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
+import { getSiteUrl } from "../config/site";
 
 function getDifferenceText(fromCity, toCity, date) {
   const differenceMinutes = getTimeDifferenceMinutes(
@@ -48,7 +49,7 @@ export default function CityPage() {
       return;
     }
 
-    const cityUrl = `https://worldtick.site/city/${cityData.slug}`;
+    const cityUrl = getSiteUrl(`/city/${cityData.slug}`);
     let canonical = document.querySelector('link[rel="canonical"]');
     let openGraphUrl = document.querySelector('meta[property="og:url"]');
 
@@ -73,7 +74,7 @@ export default function CityPage() {
   }
 
   const eligibleCountry = getCountryBySlug(countrySlug(cityData.country));
-  const cityUrl = `https://worldtick.site/city/${cityData.slug}`;
+  const cityUrl = getSiteUrl(`/city/${cityData.slug}`);
   const cityStructuredData = {
     "@context": "https://schema.org",
     "@type": "City",

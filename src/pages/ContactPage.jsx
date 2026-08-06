@@ -1,3 +1,5 @@
+import { siteConfig } from "../config/site";
+
 export default function ContactPage() {
   return (
     <main style={styles.page}>
@@ -18,7 +20,7 @@ export default function ContactPage() {
         <h2 style={styles.heading}>Email</h2>
 
         <p style={styles.text}>
-          info@worldtick.site
+          {siteConfig.contactEmail}
         </p>
 
         <h2 style={styles.heading}>Response Time</h2>

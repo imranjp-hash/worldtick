@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { countries } from "../data/countries";
 import StructuredData from "../components/StructuredData";
+import { getSiteUrl } from "../config/site";
 
 export default function CountriesPage() {
   const [search, setSearch] = useState("");
@@ -20,13 +21,13 @@ export default function CountriesPage() {
     "@context": "https://schema.org",
     "@type": "ItemList",
     name: "WorldTick Country Directory",
-    url: "https://worldtick.site/countries",
+    url: getSiteUrl("/countries"),
     numberOfItems: countries.length,
     itemListElement: countries.map((country, index) => ({
       "@type": "ListItem",
       position: index + 1,
       name: country.name,
-      url: `https://worldtick.site/country/${country.slug}`,
+      url: getSiteUrl(`/country/${country.slug}`),
     })),
   };
 

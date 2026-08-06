@@ -1,3 +1,5 @@
+import { siteConfig } from "../config/site";
+
 export default function TermsPage() {
   return (
     <main style={styles.page}>
@@ -75,7 +77,7 @@ export default function TermsPage() {
 
         <p style={styles.text}>
           Questions regarding these Terms may be directed to:{" "}
-          <strong>info@worldtick.site</strong>
+          <strong>{siteConfig.contactEmail}</strong>
         </p>
       </section>
     </main>
