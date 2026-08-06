@@ -47,7 +47,6 @@ const styles = {
   },
   logo: {
     margin: 0,
-    fontSize: "1.8rem",
     color: "#94a3b8",
 fontSize: "1rem",
   },

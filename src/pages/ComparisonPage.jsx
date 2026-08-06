@@ -1,4 +1,4 @@
-import React from "react";
+import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { cities } from "../data/cities";
 import {
@@ -15,6 +15,12 @@ export default function ComparisonPage() {
 
   const cityA = cities.find((city) => city.slug === fromCity);
   const cityB = cities.find((city) => city.slug === toCity);
+
+  useEffect(() => {
+    if (!cityA || !cityB) return;
+
+    document.title = `Time Difference Between ${cityA.name} and ${cityB.name} | ${siteConfig.publicSiteName}`;
+  }, [cityA, cityB]);
 
   if (!cityA || !cityB) {
     return (
@@ -59,8 +65,6 @@ export default function ComparisonPage() {
       : differenceMinutes < 0
       ? `${cityB.name} is behind ${cityA.name}`
       : `${cityB.name} and ${cityA.name} are in the same time zone`;
-
-  document.title = `Time Difference Between ${cityA.name} and ${cityB.name} | ${siteConfig.publicSiteName}`;
 
   return (
     <div style={styles.page}>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
