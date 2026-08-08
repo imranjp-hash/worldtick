@@ -34,7 +34,7 @@ export default function TermsPage() {
 
         <p style={styles.text}>
           We strive to provide accurate and up-to-date time and timezone
-          information. However, WorldTick does not guarantee the completeness,
+          information. However, {siteConfig.publicSiteName} does not guarantee the completeness,
           accuracy, or uninterrupted availability of all information displayed.
         </p>
 
@@ -47,8 +47,8 @@ export default function TermsPage() {
 
         <p style={styles.text}>
           All website content, branding, design elements, logos, graphics, and
-          software associated with WorldTick are protected by applicable
-          intellectual property laws and remain the property of WorldTick unless
+          software associated with {siteConfig.publicSiteName} are protected by applicable
+          intellectual property laws and remain the property of {siteConfig.organizationName} unless
           otherwise stated.
         </p>
 
@@ -60,7 +60,7 @@ export default function TermsPage() {
         </p>
 
         <p style={styles.text}>
-          To the fullest extent permitted by law, WorldTick shall not be liable
+          To the fullest extent permitted by law, {siteConfig.organizationName} shall not be liable
           for any direct, indirect, incidental, consequential, or special damages
           arising from the use of or inability to use the website.
         </p>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -88,23 +89,34 @@ textShadow: "0 0 10px rgba(103,232,249,0.15)",
           
         </div>
 
-        <AnimatePresence>
-  {menuOpen && (
-    <>
-      <motion.div
+        {createPortal(
+          <AnimatePresence>
+            {menuOpen && (
+      <motion.button
+        key="mobile-drawer-backdrop"
+        type="button"
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.45 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         onClick={() => setMenuOpen(false)}
+        aria-label="Close navigation menu"
         style={{
           position: "fixed",
           inset: 0,
           background: "black",
+          border: 0,
+          padding: 0,
           zIndex: 40,
         }}
       />
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
 
+        <AnimatePresence>
+  {menuOpen && (
       <motion.div
         initial={{ x: "-100%" }}
         animate={{ x: 0 }}
@@ -154,7 +166,6 @@ fontWeight: 700,
           ))}
         </div>
       </motion.div>
-    </>
   )}
 </AnimatePresence>
       </div>
