@@ -3,7 +3,7 @@ import youHoraLogo from "../assets/brand/youhora-logo.png";
 export const siteConfig = Object.freeze({
   publicSiteName: "YouHora",
   organizationName: "YouHora",
-  productionOrigin: "https://worldtick.site",
+  productionOrigin: "https://www.youhora.com",
   contactEmail: "info@youhora.com",
   brandAssets: Object.freeze({
     logo: youHoraLogo,

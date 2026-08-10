@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://worldtick.site/sitemap.xml
+Sitemap: https://www.youhora.com/sitemap.xml
