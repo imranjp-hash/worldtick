@@ -1,4 +1,28 @@
 {
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "worldtick.site"
+        }
+      ],
+      "destination": "https://www.youhora.com/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.worldtick.site"
+        }
+      ],
+      "destination": "https://www.youhora.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
