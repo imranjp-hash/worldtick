@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { siteConfig } from "../config/site";
 
@@ -10,10 +9,6 @@ const destinations = [
 ];
 
 export default function NotFoundPage() {
-  useEffect(() => {
-    document.title = `Page Not Found | ${siteConfig.publicSiteName}`;
-  }, []);
-
   return (
     <main style={styles.page}>
       <section style={styles.card}>

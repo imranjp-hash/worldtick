@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { cities } from "../data/cities";
 import {
@@ -7,7 +6,6 @@ import {
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
-import { siteConfig } from "../config/site";
 
 export default function ComparisonPage() {
   const { fromCity, toCity } = useParams();
@@ -15,12 +13,6 @@ export default function ComparisonPage() {
 
   const cityA = cities.find((city) => city.slug === fromCity);
   const cityB = cities.find((city) => city.slug === toCity);
-
-  useEffect(() => {
-    if (!cityA || !cityB) return;
-
-    document.title = `Time Difference Between ${cityA.name} and ${cityB.name} | ${siteConfig.publicSiteName}`;
-  }, [cityA, cityB]);
 
   if (!cityA || !cityB) {
     return (

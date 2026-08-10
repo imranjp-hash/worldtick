@@ -1,40 +1,15 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getCountryBySlug } from "../data/countries";
 import NotFoundPage from "./NotFoundPage";
 import StructuredData from "../components/StructuredData";
 import { formatDateInZone, formatTimeInZone } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
-import { getSiteUrl, siteConfig } from "../config/site";
+import { getSiteUrl } from "../config/site";
 
 export default function CountryPage() {
   const { countrySlug } = useParams();
   const country = getCountryBySlug(countrySlug);
   const now = useNow();
-
-  useEffect(() => {
-    if (!country) {
-      document.title = `Country Not Found | ${siteConfig.publicSiteName}`;
-      return;
-    }
-
-    document.title = `Current Time in ${country.name} – Live City Clocks | ${siteConfig.publicSiteName}`;
-
-    const cityNames = country.cities
-      .slice(0, 3)
-      .map((city) => city.name)
-      .join(", ");
-    const description = `View the current local time in ${country.name}. Check live clocks, dates, and time zones for ${cityNames} and other available cities.`;
-    let meta = document.querySelector('meta[name="description"]');
-
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.name = "description";
-      document.head.appendChild(meta);
-    }
-
-    meta.content = description;
-  }, [country]);
 
   if (!country) {
     return <NotFoundPage />;

@@ -17,6 +17,7 @@ import CountriesPage from "./pages/CountriesPage";
 import CountryPage from "./pages/CountryPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ScrollToTop from "./components/ScrollToTop";
+import RouteMetadata from "./components/RouteMetadata";
 import { formatDateInZone, formatTimeInZone } from "./utils/dateTime";
 import useNow from "./hooks/useNow";
 import { siteConfig } from "./config/site";
@@ -71,6 +72,7 @@ useEffect(() => {
   return (
   <>
     <ScrollToTop />
+    <RouteMetadata />
     <Header />
     <Routes>
     <Route

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { cities } from "../data/cities";
 import { Link } from "react-router-dom";
@@ -43,31 +42,6 @@ export default function CityPage() {
   const cityData = cities.find(
   (c) => c.slug === city?.toLowerCase()
 );
-
-  useEffect(() => {
-    if (!cityData) {
-      return;
-    }
-
-    const cityUrl = getSiteUrl(`/city/${cityData.slug}`);
-    let canonical = document.querySelector('link[rel="canonical"]');
-    let openGraphUrl = document.querySelector('meta[property="og:url"]');
-
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.rel = "canonical";
-      document.head.appendChild(canonical);
-    }
-
-    if (!openGraphUrl) {
-      openGraphUrl = document.createElement("meta");
-      openGraphUrl.setAttribute("property", "og:url");
-      document.head.appendChild(openGraphUrl);
-    }
-
-    canonical.href = cityUrl;
-    openGraphUrl.content = cityUrl;
-  }, [cityData]);
 
   if (!cityData) {
     return <NotFoundPage />;

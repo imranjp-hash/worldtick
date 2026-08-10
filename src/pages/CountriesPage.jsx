@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { countries } from "../data/countries";
 import StructuredData from "../components/StructuredData";
@@ -30,22 +30,6 @@ export default function CountriesPage() {
       url: getSiteUrl(`/country/${country.slug}`),
     })),
   };
-
-  useEffect(() => {
-    document.title = `Browse Countries and World Clocks | ${siteConfig.publicSiteName}`;
-
-    const description =
-      `Explore current local times and time zones by country. Browse live city clocks across countries with multiple ${siteConfig.publicSiteName} locations.`;
-    let meta = document.querySelector('meta[name="description"]');
-
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.name = "description";
-      document.head.appendChild(meta);
-    }
-
-    meta.content = description;
-  }, []);
 
   return (
     <main style={styles.page}>
