@@ -4,7 +4,7 @@ export const siteConfig = Object.freeze({
   publicSiteName: "YouHora",
   organizationName: "YouHora",
   productionOrigin: "https://worldtick.site",
-  contactEmail: "info@worldtick.site",
+  contactEmail: "info@youhora.com",
   brandAssets: Object.freeze({
     logo: youHoraLogo,
     favicon: "/favicon.png",
