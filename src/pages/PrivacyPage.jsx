@@ -8,7 +8,7 @@ export default function PrivacyPage() {
 
         <h1 style={styles.title}>Privacy Policy</h1>
 
-        <p style={styles.updated}>Last Updated: June 2026</p>
+        <p style={styles.updated}>Last Updated: August 2026</p>
 
         <p style={styles.text}>
           At {siteConfig.publicSiteName}, we respect your privacy and are committed to protecting
@@ -31,17 +31,28 @@ export default function PrivacyPage() {
         <h2 style={styles.heading}>Cookies</h2>
 
         <p style={styles.text}>
-          {siteConfig.publicSiteName} may use cookies and similar technologies to improve user
-          experience, remember preferences, analyze website traffic, and support
-          future advertising or analytics services.
+          {siteConfig.publicSiteName} uses local storage to remember selected cities and your
+          analytics consent preference. If you accept analytics, Google Analytics may use
+          first-party cookies, including the _ga cookie, to distinguish visitors and sessions.
+          Analytics cookies are not enabled unless you consent.
         </p>
 
         <h2 style={styles.heading}>Analytics</h2>
 
         <p style={styles.text}>
-          We may use third-party analytics services to understand how visitors
-          interact with the website. These services may collect anonymized usage
-          information to help us improve our content and user experience.
+          With your consent, we use Google Analytics 4, provided by Google, to understand which
+          pages are visited, how visitors navigate the website, and general browser, device, and
+          geographic information. We use this information to measure site usage and improve our
+          content and user experience. We do not intentionally send names, email addresses, or
+          other sensitive values to Google Analytics.
+        </p>
+
+        <p style={styles.text}>
+          Analytics and advertising-related storage are denied by default. Advertising storage,
+          advertising user data, and ad personalization remain denied when you accept analytics.
+          You can reject analytics or withdraw a previous choice at any time through the Cookie
+          settings control in the website footer. Withdrawing consent stops future analytics
+          events from this website in your browser.
         </p>
 
         <h2 style={styles.heading}>Data Security</h2>

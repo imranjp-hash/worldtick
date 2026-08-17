@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
 import { siteConfig } from "../config/site";
+import { useConsent } from "../context/consentContext";
 
 export default function Footer() {
+  const { openSettings } = useConsent();
+
   return (
     <footer style={styles.footer}>
       <div style={styles.inner}>
@@ -18,6 +21,9 @@ export default function Footer() {
           <Link style={styles.link} to="/cities">Browse Cities</Link>
           <Link style={styles.link} to="/countries">Browse Countries</Link>
           <Link style={styles.link} to="/time-difference">Time Difference</Link>
+          <button type="button" style={styles.settingsButton} onClick={openSettings}>
+            Cookie settings
+          </button>
         </div>
       </div>
 
@@ -68,6 +74,16 @@ fontSize: "1rem",
     fontWeight: 700,
     fontSize: "0.95rem",
     overflowWrap: "anywhere",
+  },
+  settingsButton: {
+    padding: 0,
+    border: 0,
+    background: "transparent",
+    color: "#cbd5e1",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontWeight: 700,
+    fontSize: "0.95rem",
   },
   copy: {
     maxWidth: "1180px",

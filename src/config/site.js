@@ -5,6 +5,11 @@ export const siteConfig = Object.freeze({
   organizationName: "YouHora",
   productionOrigin: "https://www.youhora.com",
   contactEmail: "info@youhora.com",
+  analytics: Object.freeze({
+    measurementId: "G-T6GM8CEHWX",
+    consentStorageKey: "youhora-analytics-consent-v1",
+    consentVersion: 1,
+  }),
   brandAssets: Object.freeze({
     logo: youHoraLogo,
     favicon: "/favicon.png",

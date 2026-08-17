@@ -21,6 +21,8 @@ import RouteMetadata from "./components/RouteMetadata";
 import { formatDateInZone, formatTimeInZone } from "./utils/dateTime";
 import useNow from "./hooks/useNow";
 import { siteConfig } from "./config/site";
+import Analytics from "./components/Analytics";
+import CookieConsent from "./components/CookieConsent";
 
 function LegacyCityRedirect() {
   const { city } = useParams();
@@ -73,6 +75,7 @@ useEffect(() => {
   <>
     <ScrollToTop />
     <RouteMetadata />
+    <Analytics />
     <Header />
     <Routes>
     <Route
@@ -131,6 +134,7 @@ useEffect(() => {
 <Route path="*" element={<NotFoundPage />} />
        </Routes>
        <Footer />
+       <CookieConsent />
   </>
 );
 }
