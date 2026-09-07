@@ -6,6 +6,7 @@ const scriptId = "youhora-google-analytics";
 let analyticsLoadPromise;
 let consentDefaultsSet = false;
 let analyticsConsentGranted = false;
+let analyticsConsentRevision = 0;
 let lastTrackedPage;
 
 function getGtag() {
@@ -34,6 +35,9 @@ export function initializeConsentDefaults() {
 
 export function setAnalyticsConsent(granted) {
   initializeConsentDefaults();
+  if (analyticsConsentGranted !== granted) {
+    analyticsConsentRevision += 1;
+  }
   analyticsConsentGranted = granted;
   window[`ga-disable-${measurementId}`] = !granted;
 
@@ -98,6 +102,30 @@ export function loadAnalytics() {
   });
 
   return analyticsLoadPromise;
+}
+
+export async function trackTimeComparisonCompleted({ fromCitySlug, toCitySlug }) {
+  if (!import.meta.env.PROD || !analyticsConsentGranted) {
+    return;
+  }
+
+  const consentRevision = analyticsConsentRevision;
+
+  try {
+    const loaded = await loadAnalytics();
+
+    // Withdrawal cancels pending events, even if consent is granted again.
+    if (!loaded || !analyticsConsentGranted || consentRevision !== analyticsConsentRevision) {
+      return;
+    }
+
+    getGtag()("event", "time_comparison_completed", {
+      from_city_slug: fromCitySlug,
+      to_city_slug: toCitySlug,
+    });
+  } catch {
+    // Analytics failures must never affect the comparison experience.
+  }
 }
 
 export function trackPageView({ path, title }) {

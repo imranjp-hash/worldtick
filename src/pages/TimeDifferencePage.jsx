@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
@@ -9,11 +9,57 @@ import {
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
 import { getSiteUrl, siteConfig } from "../config/site";
+import { trackTimeComparisonCompleted } from "../utils/analytics";
 
 export default function TimeDifferencePage() {
   const [fromCity, setFromCity] = useState(cities[0]);
   const [toCity, setToCity] = useState(cities[1]);
+  const activePair = useRef({ fromCity: cities[0], toCity: cities[1] });
   const now = useNow();
+
+  function handleCitySelection(field, slug) {
+    const city = cities.find((candidate) => candidate.slug === slug);
+
+    if (!city || activePair.current[field].slug === city.slug) {
+      return;
+    }
+
+    const nextPair = { ...activePair.current, [field]: city };
+
+    try {
+      const result = getTimeDifferenceMinutes(
+        nextPair.fromCity.timezone,
+        nextPair.toCity.timezone,
+        now,
+      );
+      if (!Number.isFinite(result)) {
+        return;
+      }
+    } catch {
+      // Keep the current result if the candidate comparison cannot be calculated.
+      return;
+    }
+
+    // Update immediately so repeated handlers cannot count the same active pair.
+    activePair.current = nextPair;
+    setFromCity(nextPair.fromCity);
+    setToCity(nextPair.toCity);
+
+    if (nextPair.fromCity.slug !== nextPair.toCity.slug) {
+      void trackTimeComparisonCompleted({
+        fromCitySlug: nextPair.fromCity.slug,
+        toCitySlug: nextPair.toCity.slug,
+      });
+    }
+  }
+
+  function handleSwapCities() {
+    const { fromCity: currentFrom, toCity: currentTo } = activePair.current;
+    activePair.current = { fromCity: currentTo, toCity: currentFrom };
+    setFromCity(currentTo);
+    setToCity(currentFrom);
+  }
+
   const calculatorStructuredData = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -91,7 +137,7 @@ const toCityTime = formatTimeInZone(toCity.timezone, now, {
             <select
               value={fromCity.slug}
               onChange={(e) =>
-                setFromCity(cities.find((city) => city.slug === e.target.value))
+                handleCitySelection("fromCity", e.target.value)
               }
               style={{
                 width: "100%",
@@ -118,7 +164,7 @@ const toCityTime = formatTimeInZone(toCity.timezone, now, {
             <select
               value={toCity.slug}
               onChange={(e) =>
-                setToCity(cities.find((city) => city.slug === e.target.value))
+                handleCitySelection("toCity", e.target.value)
               }
               style={{
                 width: "100%",
@@ -139,11 +185,7 @@ const toCityTime = formatTimeInZone(toCity.timezone, now, {
           </div>
         </div>
         <button
-  onClick={() => {
-    const temp = fromCity;
-    setFromCity(toCity);
-    setToCity(temp);
-  }}
+  onClick={handleSwapCities}
   style={{
     marginTop: "20px",
     padding: "12px 24px",
