@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
 import {
@@ -11,20 +11,58 @@ import useNow from "../hooks/useNow";
 import { getSiteUrl, siteConfig } from "../config/site";
 import { trackTimeComparisonCompleted } from "../utils/analytics";
 
+function resolveCityPair(search) {
+  const params = new URLSearchParams(search);
+  const from = params.getAll("from");
+  const to = params.getAll("to");
+  const defaultPair = { fromCity: cities[0], toCity: cities[1] };
+
+  if (from.length !== 1 || to.length !== 1) {
+    return defaultPair;
+  }
+
+  const fromCity = cities.find((city) => city.slug === from[0]);
+  const toCity = cities.find((city) => city.slug === to[0]);
+  return fromCity && toCity ? { fromCity, toCity } : defaultPair;
+}
+
 export default function TimeDifferencePage() {
-  const [fromCity, setFromCity] = useState(cities[0]);
-  const [toCity, setToCity] = useState(cities[1]);
-  const activePair = useRef({ fromCity: cities[0], toCity: cities[1] });
+  const location = useLocation();
+  const navigate = useNavigate();
+  const resolvedPair = resolveCityPair(location.search);
+  const { fromCity, toCity } = resolvedPair;
+  const activePair = useRef(null);
   const now = useNow();
+
+  function getActivePair() {
+    // A new router location invalidates any pending pair from the previous visit.
+    return activePair.current?.location === location
+      ? activePair.current.pair
+      : resolvedPair;
+  }
+
+  function updatePair(nextPair) {
+    const params = new URLSearchParams(location.search);
+    params.set("from", nextPair.fromCity.slug);
+    params.set("to", nextPair.toCity.slug);
+
+    // Preserve rapid consecutive actions before the router's next render.
+    activePair.current = { location, pair: nextPair };
+    navigate(
+      { pathname: location.pathname, search: `?${params}`, hash: location.hash },
+      { replace: true, state: location.state },
+    );
+  }
 
   function handleCitySelection(field, slug) {
     const city = cities.find((candidate) => candidate.slug === slug);
+    const currentPair = getActivePair();
 
-    if (!city || activePair.current[field].slug === city.slug) {
+    if (!city || currentPair[field].slug === city.slug) {
       return;
     }
 
-    const nextPair = { ...activePair.current, [field]: city };
+    const nextPair = { ...currentPair, [field]: city };
 
     try {
       const result = getTimeDifferenceMinutes(
@@ -40,10 +78,7 @@ export default function TimeDifferencePage() {
       return;
     }
 
-    // Update immediately so repeated handlers cannot count the same active pair.
-    activePair.current = nextPair;
-    setFromCity(nextPair.fromCity);
-    setToCity(nextPair.toCity);
+    updatePair(nextPair);
 
     if (nextPair.fromCity.slug !== nextPair.toCity.slug) {
       void trackTimeComparisonCompleted({
@@ -54,10 +89,8 @@ export default function TimeDifferencePage() {
   }
 
   function handleSwapCities() {
-    const { fromCity: currentFrom, toCity: currentTo } = activePair.current;
-    activePair.current = { fromCity: currentTo, toCity: currentFrom };
-    setFromCity(currentTo);
-    setToCity(currentFrom);
+    const { fromCity: currentFrom, toCity: currentTo } = getActivePair();
+    updatePair({ fromCity: currentTo, toCity: currentFrom });
   }
 
   const calculatorStructuredData = {

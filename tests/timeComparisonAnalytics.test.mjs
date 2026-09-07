@@ -45,16 +45,24 @@ function analyticsHarness(production = true) {
   };
 }
 
-// Isolate real JSX handlers with a small state/ref harness, without a DOM dependency.
-// Repeated render calls exercise side-effect isolation; this is not a React renderer.
-function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes) {
+// Isolate real JSX handlers with a small router/ref harness, without a DOM dependency.
+// Navigation commits on render; repeated renders retain the same location object.
+// This exercises side-effect isolation and stale handlers, not a real React renderer.
+function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, initialLocation = {}) {
   const slots = [];
   const pending = [];
+  const navigations = [];
+  const history = [{ pathname: "/time-difference", search: "", hash: "", state: null, key: "initial", ...initialLocation }];
+  let historyIndex = 0;
+  let nextKey = 0;
+  let renderedEntry;
+  let location;
   let index = 0;
   let tree;
   let now = new Date("2026-09-07T12:00:00Z");
   const context = vm.createContext({
     ...dateTime,
+    URLSearchParams,
     getTimeDifferenceMinutes: calculate,
     cities,
     siteConfig: { publicSiteName: "Test" },
@@ -62,10 +70,12 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes) {
     Link: "Link", StructuredData: "StructuredData",
     createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
     useNow: () => now,
-    useState(initial) {
-      const slot = index++;
-      if (!(slot in slots)) slots[slot] = initial;
-      return [slots[slot], (value) => { slots[slot] = value; }];
+    useLocation: () => location,
+    useNavigate: () => (destination, options) => {
+      navigations.push({ destination, options });
+      const entry = { ...destination, state: options.state, key: String(++nextKey) };
+      if (options.replace) history[historyIndex] = entry;
+      else history.splice(++historyIndex, history.length, entry);
     },
     useRef(initial) {
       const slot = index++;
@@ -83,6 +93,10 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes) {
     return [...(node.type === type ? [node] : []), ...nodes(type, node.children)];
   }
   function render() {
+    if (renderedEntry !== history[historyIndex]) {
+      renderedEntry = history[historyIndex];
+      location = { ...renderedEntry };
+    }
     index = 0;
     tree = context.TimeDifferencePage();
   }
@@ -94,6 +108,18 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes) {
     swap() { nodes("button")[0].props.onClick(); },
     pair: () => nodes("select").map((node) => node.props.value),
     links: () => nodes("Link"),
+    structuredData: () => nodes("StructuredData")[0].props.data,
+    location: () => location,
+    navigations,
+    historyLength: () => history.length,
+    visit(search, extra = {}) {
+      history.splice(++historyIndex, history.length, {
+        pathname: "/time-difference", search, hash: "", state: null, key: String(++nextKey), ...extra,
+      });
+      render();
+    },
+    back() { if (historyIndex > 0) historyIndex--; render(); },
+    forward() { if (historyIndex < history.length - 1) historyIndex++; render(); },
     settle: () => Promise.all(pending),
   };
 }
@@ -276,4 +302,227 @@ test("custom events leave page-view deduplication and advertising denial intact"
       assert.equal(call[2][key], "denied");
     }
   }
+});
+
+test("valid shared URLs initialize both cities, allow same-city pairs, and never count", async () => {
+  const analytics = await readyAnalytics();
+  for (const [search, pair] of [
+    ["?from=toronto&to=london", ["toronto", "london"]],
+    ["?to=paris&from=london", ["london", "paris"]],
+    ["?from=london&to=london", ["london", "london"]],
+    ["?from=%6Condon&to=paris", ["london", "paris"]],
+    ["?from=london&to=paris&utm_source=shared&extra=%ZZ", ["london", "paris"]],
+  ]) {
+    const page = pageHarness(analytics, undefined, { search });
+    assert.deepEqual(page.pair(), pair);
+    assert.equal(page.links()[0].props.to, `/compare/${pair[0]}/${pair[1]}`);
+    page.render();
+    page.tick();
+    const refreshed = pageHarness(analytics, undefined, page.location());
+    assert.deepEqual(refreshed.pair(), pair);
+    assert.equal(page.location().search, search);
+    assert.equal(page.navigations.length, 0);
+    assert.equal(refreshed.navigations.length, 0);
+  }
+  assert.equal(analytics.events().length, 0);
+});
+
+test("partial, empty, duplicated, malformed or invalid parameters default the entire pair without rewriting", async () => {
+  const analytics = await readyAnalytics();
+  for (const search of [
+    "", "?from=london", "?to=paris", "?utm_source=shared",
+    "?from=&to=paris", "?from=london&to=", "?from&to=paris",
+    "?from=unknown&to=paris", "?from=london&to=unknown", "?from=unknown&to=unknown",
+    "?from=london&from=london&to=paris", "?from=london&from=toronto&to=paris",
+    "?from=london&to=paris&to=paris", "?from=london&to=paris&to=unknown",
+    "?from=london&%66rom=toronto&to=paris",
+    "?from=%&to=paris", "?from=london&to=%ZZ", "?from=%E0%A4%A&to=paris",
+    "?from=London&to=paris", "?from=london&to=PARIS", "?from=+london&to=paris",
+    "?from=london%00&to=paris", "?from=%256Condon&to=paris",
+    "?from[]=london&to=paris", "?from=london;to=paris",
+  ]) {
+    const page = pageHarness(analytics, undefined, { search });
+    page.render();
+    page.tick();
+    assert.deepEqual(page.pair(), ["toronto", "vancouver"], search);
+    assert.equal(page.location().search, search);
+    assert.equal(page.navigations.length, 0, search);
+  }
+  assert.equal(analytics.events().length, 0);
+});
+
+test("a later selection writes both slugs and preserves other parameters, hash and router state", async () => {
+  const analytics = await readyAnalytics();
+  const routerState = { returnTo: "/cities" };
+  const page = pageHarness(analytics, undefined, {
+    search: "?from=london&to=paris&utm_source=shared&tag=one&tag=two&note=hello%20world",
+    hash: "#comparison", state: routerState,
+  });
+  page.select(0, "toronto");
+  page.select(0, "toronto");
+  page.render();
+  await page.settle();
+  const params = new URLSearchParams(page.location().search);
+  assert.deepEqual(page.pair(), ["toronto", "paris"]);
+  assert.deepEqual(params.getAll("from"), ["toronto"]);
+  assert.deepEqual(params.getAll("to"), ["paris"]);
+  assert.equal(params.get("utm_source"), "shared");
+  assert.deepEqual(params.getAll("tag"), ["one", "two"]);
+  assert.equal(params.get("note"), "hello world");
+  assert.equal(page.location().hash, "#comparison");
+  assert.equal(page.location().state, routerState);
+  assert.equal(page.location().pathname, "/time-difference");
+  assert.equal(page.historyLength(), 1);
+  assert.equal(page.navigations.length, 1);
+  assert.equal(page.navigations[0].options.replace, true);
+  assert.equal(analytics.events().length, 1);
+  assert.equal(analytics.events()[0][2].to_city_slug, "paris");
+});
+
+test("an action after a partial or duplicated URL starts from the full fallback pair", async () => {
+  const analytics = await readyAnalytics();
+  for (const search of ["?from=london&utm_source=shared", "?from=london&from=paris&to=paris&utm_source=shared"]) {
+    const page = pageHarness(analytics, undefined, { search });
+    page.select(0, "toronto"); // Unchanged fallback selection must not normalize the URL.
+    assert.equal(page.navigations.length, 0);
+    page.select(1, "london");
+    page.render();
+    await page.settle();
+    assert.deepEqual(page.pair(), ["toronto", "london"]);
+    const params = new URLSearchParams(page.location().search);
+    assert.deepEqual(params.getAll("from"), ["toronto"]);
+    assert.deepEqual(params.getAll("to"), ["london"]);
+    assert.equal(params.get("utm_source"), "shared");
+  }
+  assert.equal(analytics.events().length, 2);
+});
+
+test("swap serializes the reversed shared pair and preserves extras without counting", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, {
+    search: "?from=london&to=paris&utm_source=shared", hash: "#comparison", state: { saved: true },
+  });
+  page.swap();
+  page.render();
+  assert.deepEqual(page.pair(), ["paris", "london"]);
+  assert.equal(page.location().search, "?from=paris&to=london&utm_source=shared");
+  assert.equal(page.location().hash, "#comparison");
+  assert.deepEqual(page.location().state, { saved: true });
+  page.select(0, "paris");
+  assert.equal(page.navigations.length, 1);
+  await page.settle();
+  assert.equal(analytics.events().length, 0);
+  page.select(1, "toronto");
+  page.render();
+  await page.settle();
+  assert.deepEqual(page.pair(), ["paris", "toronto"]);
+  assert.equal(analytics.events().length, 1);
+  assert.equal(page.historyLength(), 1);
+});
+
+test("rapid changes before router commit retain the latest opposite city and replace one entry", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, { search: "?from=london&to=paris" });
+  page.select(0, "toronto");
+  page.select(1, "vancouver");
+  page.select(1, "vancouver");
+  page.render();
+  page.tick();
+  await page.settle();
+  assert.deepEqual(page.pair(), ["toronto", "vancouver"]);
+  assert.equal(page.location().search, "?from=toronto&to=vancouver");
+  assert.equal(page.navigations.length, 2);
+  assert.equal(page.historyLength(), 1);
+  assert.deepEqual(analytics.events().map((event) => [event[2].from_city_slug, event[2].to_city_slug]), [
+    ["toronto", "paris"], ["toronto", "vancouver"],
+  ]);
+});
+
+test("back and forward restore URL pairs without events or stale opposite cities", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, { search: "?from=london&to=paris" });
+  page.select(0, "toronto");
+  page.render();
+  await page.settle();
+  page.visit("?from=tokyo&to=sydney");
+  page.back();
+  assert.deepEqual(page.pair(), ["toronto", "paris"]);
+  page.forward();
+  assert.deepEqual(page.pair(), ["tokyo", "sydney"]);
+  assert.equal(analytics.events().length, 1);
+  page.select(0, "london");
+  page.render();
+  await page.settle();
+  assert.deepEqual(page.pair(), ["london", "sydney"]);
+  assert.equal(analytics.events().length, 2);
+  assert.equal(analytics.events()[1][2].to_city_slug, "sydney");
+  page.back();
+  page.select(1, "london");
+  page.render();
+  await page.settle();
+  assert.deepEqual(page.pair(), ["toronto", "london"]);
+  assert.equal(analytics.events().length, 3);
+  assert.equal(page.historyLength(), 2);
+});
+
+test("revisiting the same history key cannot reuse a pair pending from an earlier render", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, { search: "?from=london&to=paris", key: "revisited" });
+  page.select(0, "toronto");
+  page.render();
+  await page.settle();
+  page.visit("?from=tokyo&to=sydney");
+  page.visit("?from=london&to=paris", { key: "revisited" });
+  page.select(1, "vancouver");
+  page.render();
+  await page.settle();
+  assert.deepEqual(page.pair(), ["london", "vancouver"]);
+  assert.equal(analytics.events().length, 2);
+  assert.equal(analytics.events()[1][2].from_city_slug, "london");
+});
+
+test("navigation to a partial URL discards the old pair, including for a subsequent swap", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, { search: "?from=london&to=paris" });
+  page.select(0, "tokyo");
+  page.render();
+  await page.settle();
+  page.visit("?to=london&campaign=test");
+  assert.deepEqual(page.pair(), ["toronto", "vancouver"]);
+  page.swap();
+  page.render();
+  assert.deepEqual(page.pair(), ["vancouver", "toronto"]);
+  assert.equal(page.location().search, "?to=toronto&campaign=test&from=vancouver");
+  assert.equal(analytics.events().length, 1);
+});
+
+test("URL hydration and pre-consent URL updates never replay after acceptance", async () => {
+  const analytics = analyticsHarness();
+  const page = pageHarness(analytics, undefined, { search: "?from=london&to=paris" });
+  page.select(0, "toronto");
+  page.render();
+  await page.settle();
+  assert.equal(analytics.scripts.length, 0);
+  analytics.context.setAnalyticsConsent(true);
+  const loading = analytics.context.loadAnalytics();
+  analytics.finishLoad();
+  await loading;
+  page.tick();
+  page.visit("?from=tokyo&to=sydney");
+  page.back();
+  page.select(0, "toronto");
+  await page.settle();
+  assert.equal(analytics.events().length, 0);
+  page.select(1, "london");
+  page.render();
+  await page.settle();
+  assert.equal(analytics.events().length, 1);
+});
+
+test("query changes leave the calculator structured-data URL unchanged", () => {
+  const page = pageHarness(analyticsHarness(), undefined, { search: "?from=london&to=paris" });
+  assert.equal(page.structuredData().url, "https://example.test/time-difference");
+  page.swap();
+  page.render();
+  assert.equal(page.structuredData().url, "https://example.test/time-difference");
 });
