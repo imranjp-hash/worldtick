@@ -8,10 +8,15 @@ import * as dateTime from "../src/utils/dateTime.js";
 
 const analyticsSource = await readFile(new URL("../src/utils/analytics.js", import.meta.url), "utf8");
 const pageSource = await readFile(new URL("../src/pages/TimeDifferencePage.jsx", import.meta.url), "utf8");
+const siteSource = await readFile(new URL("../src/config/site.js", import.meta.url), "utf8");
 const { code: pageCode } = await transformWithOxc(pageSource, "TimeDifferencePage.jsx", {
   jsx: { runtime: "classic", pragma: "createElement" },
 });
 const withoutImports = (source) => source.replace(/^import[\s\S]*?;\r?\n/gm, "");
+const siteContext = vm.createContext({ URL, youHoraLogo: "test-logo" });
+vm.runInContext(withoutImports(siteSource)
+  .replaceAll("export const", "const")
+  .replaceAll("export function", "function"), siteContext);
 
 function analyticsHarness(production = true) {
   const scripts = [];
@@ -45,11 +50,18 @@ function analyticsHarness(production = true) {
   };
 }
 
-// Isolate real JSX handlers with a small router/ref harness, without a DOM dependency.
+// Isolate real JSX handlers with a small router/hooks harness, without a DOM dependency.
 // Navigation commits on render; repeated renders retain the same location object.
 // This exercises side-effect isolation and stale handlers, not a real React renderer.
-function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, initialLocation = {}) {
+function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, initialLocation = {}, options = {}) {
   const slots = [];
+  const effects = new Map();
+  const pendingEffects = new Map();
+  const timers = new Map();
+  const clipboardWrites = [];
+  const navigator = options.navigator ?? {
+    clipboard: { writeText: async (text) => { clipboardWrites.push(text); } },
+  };
   const pending = [];
   const navigations = [];
   const history = [{ pathname: "/time-difference", search: "", hash: "", state: null, key: "initial", ...initialLocation }];
@@ -59,14 +71,28 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
   let location;
   let index = 0;
   let tree;
+  let renderAgain = false;
+  let mounted = true;
+  let elapsed = 0;
+  let nextTimer = 0;
   let now = new Date("2026-09-07T12:00:00Z");
   const context = vm.createContext({
     ...dateTime,
     URLSearchParams,
+    navigator,
+    window: {
+      location: { origin: "http://localhost:5173" },
+      setTimeout(callback, delay) {
+        const id = ++nextTimer;
+        timers.set(id, { callback, due: elapsed + delay });
+        return id;
+      },
+      clearTimeout(id) { timers.delete(id); },
+    },
     getTimeDifferenceMinutes: calculate,
     cities,
     siteConfig: { publicSiteName: "Test" },
-    getSiteUrl: (path) => `https://example.test${path}`,
+    getSiteUrl: options.getSiteUrl ?? ((path) => `https://example.test${path}`),
     Link: "Link", StructuredData: "StructuredData",
     createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
     useNow: () => now,
@@ -81,6 +107,25 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
       const slot = index++;
       if (!(slot in slots)) slots[slot] = { current: initial };
       return slots[slot];
+    },
+    useState(initial) {
+      const slot = index++;
+      if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
+      return [slots[slot], (value) => {
+        assert.ok(mounted, "state must not update after unmount");
+        const next = typeof value === "function" ? value(slots[slot]) : value;
+        if (!Object.is(slots[slot], next)) {
+          slots[slot] = next;
+          renderAgain = true;
+        }
+      }];
+    },
+    useLayoutEffect(setup, deps) {
+      const slot = index++;
+      const previous = effects.get(slot);
+      if (!previous || deps.some((dep, i) => !Object.is(dep, previous.deps[i]))) {
+        pendingEffects.set(slot, { setup, deps });
+      }
     },
     trackTimeComparisonCompleted(params) {
       pending.push(analytics.context.trackTimeComparisonCompleted(params));
@@ -97,12 +142,49 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
       renderedEntry = history[historyIndex];
       location = { ...renderedEntry };
     }
-    index = 0;
-    tree = context.TimeDifferencePage();
+    let passes = 0;
+    do {
+      assert.ok(++passes < 25, "render must settle");
+      renderAgain = false;
+      index = 0;
+      tree = context.TimeDifferencePage();
+    } while (renderAgain);
+    for (const [slot, effect] of pendingEffects) {
+      effects.get(slot)?.cleanup?.();
+      effects.set(slot, { ...effect, cleanup: effect.setup() });
+    }
+    pendingEffects.clear();
   }
   render();
   return {
     render,
+    navigator,
+    clipboardWrites,
+    copy: () => nodes("button").find((node) => node.props.type === "button").props.onClick(),
+    copyButton: () => nodes("button").find((node) => node.props.type === "button"),
+    copyLabel: () => nodes("button").find((node) => node.props.type === "button").children.join(""),
+    status: () => nodes("span").find((node) => node.props.role === "status"),
+    timerCount: () => timers.size,
+    advance(milliseconds) {
+      const end = elapsed + milliseconds;
+      while (timers.size) {
+        const [id, timer] = [...timers].sort((a, b) => a[1].due - b[1].due)[0];
+        if (timer.due > end) break;
+        elapsed = timer.due;
+        timers.delete(id);
+        timer.callback();
+      }
+      elapsed = end;
+      render();
+    },
+    replayEffects() {
+      for (const effect of effects.values()) effect.cleanup?.();
+      for (const effect of effects.values()) effect.cleanup = effect.setup();
+    },
+    unmount() {
+      for (const effect of effects.values()) effect.cleanup?.();
+      mounted = false;
+    },
     tick() { now = new Date(now.getTime() + 1000); render(); },
     select(field, value) { nodes("select")[field].props.onChange({ target: { value } }); },
     swap() { nodes("button")[0].props.onClick(); },
@@ -525,4 +607,236 @@ test("query changes leave the calculator structured-data URL unchanged", () => {
   page.swap();
   page.render();
   assert.equal(page.structuredData().url, "https://example.test/time-difference");
+});
+
+test("copy uses the production utility and only the canonical displayed pair without navigation", async () => {
+  for (const [search, expected] of [
+    ["?from=toronto&to=london&utm_source=test&tag=one&tag=two", "from=toronto&to=london"],
+    ["?to=paris&from=%6Condon", "from=london&to=paris"],
+    ["", "from=toronto&to=vancouver"],
+    ["?from=london", "from=toronto&to=vancouver"],
+    ["?from=unknown&to=paris", "from=toronto&to=vancouver"],
+    ["?from=london&from=toronto&to=paris", "from=toronto&to=vancouver"],
+    ["?from=%ZZ&to=paris", "from=toronto&to=vancouver"],
+    ["?from=london&to=london", "from=london&to=london"],
+  ]) {
+    const page = pageHarness(analyticsHarness(), undefined, {
+      search, hash: "#calculator", state: { source: "private-router-state" },
+    }, { getSiteUrl: siteContext.getSiteUrl });
+    const location = page.location();
+    const fullComparisonLink = page.links()[0].props.to;
+    assert.equal(page.copyLabel(), "Copy comparison link");
+    assert.equal(page.status().children.join(""), "");
+    await page.copy();
+    page.render();
+    assert.deepEqual(page.clipboardWrites, [`https://www.youhora.com/time-difference?${expected}`]);
+    assert.equal(page.location(), location);
+    assert.equal(page.historyLength(), 1);
+    assert.equal(page.navigations.length, 0);
+    assert.equal(page.links()[0].props.to, fullComparisonLink);
+    assert.equal(page.copyButton().props.type, "button");
+    assert.equal(page.copyButton().props.disabled, undefined);
+    assert.equal(page.copyButton().props.key, undefined);
+    assert.equal(page.status().props["aria-atomic"], "true");
+  }
+});
+
+test("copy follows dropdown, swap and history results without adding analytics calls", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, { search: "?from=toronto&to=london" }, {
+    getSiteUrl: siteContext.getSiteUrl,
+  });
+  page.select(1, "paris");
+  page.render();
+  await page.settle();
+  assert.equal(analytics.events().length, 1);
+  const beforeCopy = analytics.calls();
+  await page.copy();
+  page.swap();
+  page.render();
+  await page.copy();
+  page.visit("?from=tokyo&to=sydney");
+  await page.copy();
+  page.back();
+  await page.copy();
+  page.forward();
+  await page.copy();
+  assert.deepEqual(page.clipboardWrites, [
+    "https://www.youhora.com/time-difference?from=toronto&to=paris",
+    "https://www.youhora.com/time-difference?from=paris&to=toronto",
+    "https://www.youhora.com/time-difference?from=tokyo&to=sydney",
+    "https://www.youhora.com/time-difference?from=paris&to=toronto",
+    "https://www.youhora.com/time-difference?from=tokyo&to=sydney",
+  ]);
+  assert.deepEqual(analytics.calls(), beforeCopy);
+  assert.equal(page.navigations.length, 2); // Dropdown and Swap only.
+});
+
+test("copy success announces and resets after two seconds, with one timer across repeat clicks and ticks", async () => {
+  const page = pageHarness(analyticsHarness());
+  page.replayEffects(); // Development Strict Mode cleanup/setup must leave copying usable.
+  await page.copy();
+  page.render();
+  assert.equal(page.copyLabel(), "Link copied");
+  assert.equal(page.status().children.join(""), "Link copied");
+  assert.equal(page.timerCount(), 1);
+  page.advance(1500);
+  page.tick();
+  assert.equal(page.copyLabel(), "Link copied");
+  await page.copy();
+  page.render();
+  assert.equal(page.timerCount(), 1);
+  page.advance(500); // The original reset must have been cancelled.
+  assert.equal(page.copyLabel(), "Link copied");
+  page.advance(1499);
+  assert.equal(page.copyLabel(), "Link copied");
+  page.advance(1);
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(page.status().children.join(""), "");
+  assert.equal(page.timerCount(), 0);
+});
+
+test("unavailable clipboard, synchronous exceptions and rejections briefly announce failure and allow retry", async () => {
+  for (const navigator of [
+    {},
+    { clipboard: {} },
+    { clipboard: { writeText: () => { throw new Error("clipboard blocked"); } } },
+    { clipboard: { writeText: () => Promise.reject(new Error("permission denied")) } },
+    { get clipboard() { throw new Error("clipboard unavailable"); } },
+  ]) {
+    const page = pageHarness(analyticsHarness(), undefined, {}, { navigator });
+    await page.copy();
+    page.render();
+    assert.equal(page.copyLabel(), "Copy failed");
+    assert.equal(page.status().children.join(""), "Copy failed");
+    page.advance(1999);
+    assert.equal(page.copyLabel(), "Copy failed");
+    page.advance(1);
+    assert.equal(page.copyLabel(), "Copy comparison link");
+    assert.equal(page.status().children.join(""), "");
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => {} } });
+    await page.copy();
+    page.render();
+    assert.equal(page.copyLabel(), "Link copied");
+  }
+});
+
+test("rapid clicks start only one pending clipboard write", async () => {
+  let finish;
+  let writes = 0;
+  const clipboardPromise = new Promise((resolve) => { finish = resolve; });
+  const page = pageHarness(analyticsHarness(), undefined, {}, {
+    navigator: { clipboard: { writeText: () => { writes++; return clipboardPromise; } } },
+  });
+  const first = page.copy();
+  await Promise.all([page.copy(), page.copy(), page.copy()]);
+  page.render();
+  assert.equal(writes, 1);
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(page.timerCount(), 0);
+  finish();
+  await first;
+  page.render();
+  assert.equal(page.copyLabel(), "Link copied");
+  assert.equal(page.timerCount(), 1);
+});
+
+test("old clipboard success or failure is ignored after a pair change, including a return to the old pair", async () => {
+  for (const outcome of ["resolve", "reject"]) {
+    for (const returnToOriginal of [false, true]) {
+      let finish;
+      let writes = 0;
+      const clipboardPromise = new Promise((resolve, reject) => {
+        finish = outcome === "resolve" ? resolve : () => reject(new Error("late failure"));
+      });
+      const page = pageHarness(analyticsHarness(), undefined, {}, {
+        navigator: { clipboard: { writeText: () => { writes++; return clipboardPromise; } } },
+      });
+      const pendingCopy = page.copy();
+      page.select(1, "london");
+      page.render();
+      if (returnToOriginal) {
+        page.select(1, "vancouver");
+        page.render();
+      }
+      await page.copy(); // A comparison change must not unlock an outstanding write.
+      assert.equal(writes, 1);
+      finish();
+      await pendingCopy;
+      page.render();
+      assert.equal(page.copyLabel(), "Copy comparison link");
+      assert.equal(page.status().children.join(""), "");
+      assert.equal(page.timerCount(), 0);
+      page.navigator.clipboard.writeText = async () => {};
+      await page.copy();
+      page.render();
+      assert.equal(page.copyLabel(), "Link copied");
+    }
+  }
+});
+
+test("comparison changes clear feedback and reset timers without resurrecting an old message", async () => {
+  const page = pageHarness(analyticsHarness());
+  await page.copy();
+  page.render();
+  page.advance(1000);
+  page.swap();
+  page.render();
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(page.status().children.join(""), "");
+  assert.equal(page.timerCount(), 0);
+  page.swap();
+  page.render();
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  await page.copy();
+  page.render();
+  page.advance(1000);
+  assert.equal(page.copyLabel(), "Link copied");
+  page.advance(1000);
+  assert.equal(page.copyLabel(), "Copy comparison link");
+});
+
+test("unmount clears the reset timer and prevents pending success or failure from updating state", async () => {
+  const page = pageHarness(analyticsHarness());
+  await page.copy();
+  assert.equal(page.timerCount(), 1);
+  page.unmount();
+  assert.equal(page.timerCount(), 0);
+  for (const outcome of ["resolve", "reject"]) {
+    let finish;
+    const clipboardPromise = new Promise((resolve, reject) => {
+      finish = outcome === "resolve" ? resolve : () => reject(new Error("late failure"));
+    });
+    const pendingPage = pageHarness(analyticsHarness(), undefined, {}, {
+      navigator: { clipboard: { writeText: () => clipboardPromise } },
+    });
+    const operation = pendingPage.copy();
+    pendingPage.unmount();
+    finish();
+    await operation;
+    assert.equal(pendingPage.timerCount(), 0);
+  }
+});
+
+test("copy success, reset and failure leave all analytics and consent calls untouched", async () => {
+  for (const consent of ["absent", "denied", "granted"]) {
+    const analytics = consent === "granted" ? await readyAnalytics() : analyticsHarness();
+    if (consent === "denied") analytics.context.setAnalyticsConsent(false);
+    analytics.context.trackPageView({ path: "/time-difference", title: "Calculator" });
+    const page = pageHarness(analytics);
+    const before = analytics.calls();
+    const scripts = analytics.scripts.length;
+    const disabled = analytics.window["ga-disable-G-TEST"];
+    await page.copy();
+    page.advance(2000);
+    page.navigator.clipboard.writeText = () => Promise.reject(new Error("denied"));
+    await page.copy();
+    page.advance(2000);
+    assert.deepEqual(analytics.calls(), before);
+    assert.equal(analytics.scripts.length, scripts);
+    assert.equal(analytics.window["ga-disable-G-TEST"], disabled);
+    assert.equal(page.navigations.length, 0);
+    assert.equal(page.historyLength(), 1);
+    if (consent !== "granted") assert.equal(scripts, 0);
+  }
 });

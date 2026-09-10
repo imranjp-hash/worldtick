@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cities } from "../data/cities";
 import StructuredData from "../components/StructuredData";
@@ -33,6 +33,64 @@ export default function TimeDifferencePage() {
   const { fromCity, toCity } = resolvedPair;
   const activePair = useRef(null);
   const now = useNow();
+  const comparisonUrl = getSiteUrl(`/time-difference?${new URLSearchParams({
+    from: fromCity.slug,
+    to: toCity.slug,
+  })}`);
+  const [copyFeedback, setCopyFeedback] = useState({ url: comparisonUrl, message: "" });
+  const copyPending = useRef(false);
+  const copyScope = useRef(null);
+  const copyResetTimer = useRef(null);
+
+  // Reset with the rendered pair, including a return to a previously copied pair.
+  if (copyFeedback.url !== comparisonUrl) {
+    setCopyFeedback({ url: comparisonUrl, message: "" });
+  }
+
+  useLayoutEffect(() => {
+    const scope = { active: true };
+    copyScope.current = scope;
+
+    return () => {
+      scope.active = false;
+      window.clearTimeout(copyResetTimer.current);
+    };
+  }, [comparisonUrl]);
+
+  async function handleCopyComparisonLink() {
+    const scope = copyScope.current;
+    if (copyPending.current || !scope?.active) {
+      return;
+    }
+
+    copyPending.current = true;
+    window.clearTimeout(copyResetTimer.current);
+    setCopyFeedback({ url: comparisonUrl, message: "" });
+    let message = "Copy failed";
+
+    try {
+      if (typeof navigator.clipboard?.writeText === "function") {
+        await navigator.clipboard.writeText(comparisonUrl);
+        message = "Link copied";
+      }
+    } catch {
+      // Clipboard availability and permission failures use the same brief feedback.
+    } finally {
+      copyPending.current = false;
+    }
+
+    if (!scope.active) {
+      return;
+    }
+
+    setCopyFeedback({ url: comparisonUrl, message });
+    copyResetTimer.current = window.setTimeout(() => {
+      if (scope.active) {
+        setCopyFeedback({ url: comparisonUrl, message: "" });
+      }
+      copyResetTimer.current = null;
+    }, 2000);
+  }
 
   function getActivePair() {
     // A new router location invalidates any pending pair from the previous visit.
@@ -265,11 +323,20 @@ const toCityTime = formatTimeInZone(toCity.timezone, now, {
   <div>
     <strong>{toCity.name}:</strong> {toCityTime}
   </div>
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: "12px",
+      marginTop: "28px",
+    }}
+  >
   <Link
   to={`/compare/${fromCity.slug}/${toCity.slug}`}
   style={{
     display: "inline-block",
-    marginTop: "28px",
     padding: "13px 22px",
     borderRadius: "14px",
     background: "#67e8f9",
@@ -281,6 +348,28 @@ const toCityTime = formatTimeInZone(toCity.timezone, now, {
 >
   View Full Comparison Page
 </Link>
+    <button
+      type="button"
+      onClick={handleCopyComparisonLink}
+      style={{
+        padding: "13px 22px",
+        minHeight: "44px",
+        width: "min(250px, 100%)",
+        borderRadius: "14px",
+        border: "1px solid rgba(103,232,249,0.3)",
+        background: "rgba(103,232,249,0.08)",
+        color: "#67e8f9",
+        font: "inherit",
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      {copyFeedback.message || "Copy comparison link"}
+    </button>
+  </div>
+  <span className="sr-only" role="status" aria-atomic="true">
+    {copyFeedback.message}
+  </span>
 </div>
         </div>
       </div>
