@@ -9,7 +9,7 @@ import {
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
 import { getSiteUrl, siteConfig } from "../config/site";
-import { trackTimeComparisonCompleted } from "../utils/analytics";
+import { trackComparisonLinkCopied, trackTimeComparisonCompleted } from "../utils/analytics";
 
 function resolveCityPair(search) {
   const params = new URLSearchParams(search);
@@ -71,6 +71,10 @@ export default function TimeDifferencePage() {
     try {
       if (typeof navigator.clipboard?.writeText === "function") {
         await navigator.clipboard.writeText(comparisonUrl);
+        void trackComparisonLinkCopied({
+          fromCitySlug: fromCity.slug,
+          toCitySlug: toCity.slug,
+        });
         message = "Link copied";
       }
     } catch {

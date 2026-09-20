@@ -44,6 +44,7 @@ function analyticsHarness(production = true) {
   return {
     context, scripts, window, calls,
     events: () => calls().filter((call) => call[0] === "event" && call[1] === "time_comparison_completed"),
+    copyEvents: () => calls().filter((call) => call[0] === "event" && call[1] === "comparison_link_copied"),
     finishLoad(type = "load") {
       for (const listener of scripts[0].listeners[type] || []) listener(new Error("test load failure"));
     },
@@ -129,6 +130,9 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     },
     trackTimeComparisonCompleted(params) {
       pending.push(analytics.context.trackTimeComparisonCompleted(params));
+    },
+    trackComparisonLinkCopied(params) {
+      pending.push(analytics.context.trackComparisonLinkCopied(params));
     },
   });
   vm.runInContext(withoutImports(pageCode).replace("export default function", "function"), context);
@@ -609,7 +613,7 @@ test("query changes leave the calculator structured-data URL unchanged", () => {
   assert.equal(page.structuredData().url, "https://example.test/time-difference");
 });
 
-test("copy uses the production utility and only the canonical displayed pair without navigation", async () => {
+test("copy uses the production utility and tracks exactly the canonical slugs without navigation", async () => {
   for (const [search, expected] of [
     ["?from=toronto&to=london&utm_source=test&tag=one&tag=two", "from=toronto&to=london"],
     ["?to=paris&from=%6Condon", "from=london&to=paris"],
@@ -620,7 +624,8 @@ test("copy uses the production utility and only the canonical displayed pair wit
     ["?from=%ZZ&to=paris", "from=toronto&to=vancouver"],
     ["?from=london&to=london", "from=london&to=london"],
   ]) {
-    const page = pageHarness(analyticsHarness(), undefined, {
+    const analytics = await readyAnalytics();
+    const page = pageHarness(analytics, undefined, {
       search, hash: "#calculator", state: { source: "private-router-state" },
     }, { getSiteUrl: siteContext.getSiteUrl });
     const location = page.location();
@@ -628,8 +633,17 @@ test("copy uses the production utility and only the canonical displayed pair wit
     assert.equal(page.copyLabel(), "Copy comparison link");
     assert.equal(page.status().children.join(""), "");
     await page.copy();
+    await page.settle();
     page.render();
     assert.deepEqual(page.clipboardWrites, [`https://www.youhora.com/time-difference?${expected}`]);
+    const expectedParams = new URLSearchParams(expected);
+    assert.deepEqual(JSON.parse(JSON.stringify(analytics.copyEvents())), [[
+      "event", "comparison_link_copied", {
+        from_city_slug: expectedParams.get("from"),
+        to_city_slug: expectedParams.get("to"),
+      },
+    ]]);
+    assert.equal(analytics.events().length, 0);
     assert.equal(page.location(), location);
     assert.equal(page.historyLength(), 1);
     assert.equal(page.navigations.length, 0);
@@ -641,7 +655,7 @@ test("copy uses the production utility and only the canonical displayed pair wit
   }
 });
 
-test("copy follows dropdown, swap and history results without adding analytics calls", async () => {
+test("copy tracks dropdown, swap and history results without changing other analytics calls", async () => {
   const analytics = await readyAnalytics();
   const page = pageHarness(analytics, undefined, { search: "?from=toronto&to=london" }, {
     getSiteUrl: siteContext.getSiteUrl,
@@ -661,6 +675,7 @@ test("copy follows dropdown, swap and history results without adding analytics c
   await page.copy();
   page.forward();
   await page.copy();
+  await page.settle();
   assert.deepEqual(page.clipboardWrites, [
     "https://www.youhora.com/time-difference?from=toronto&to=paris",
     "https://www.youhora.com/time-difference?from=paris&to=toronto",
@@ -668,23 +683,32 @@ test("copy follows dropdown, swap and history results without adding analytics c
     "https://www.youhora.com/time-difference?from=paris&to=toronto",
     "https://www.youhora.com/time-difference?from=tokyo&to=sydney",
   ]);
-  assert.deepEqual(analytics.calls(), beforeCopy);
+  assert.deepEqual(analytics.copyEvents().map((event) => [event[2].from_city_slug, event[2].to_city_slug]), [
+    ["toronto", "paris"], ["paris", "toronto"], ["tokyo", "sydney"],
+    ["paris", "toronto"], ["tokyo", "sydney"],
+  ]);
+  assert.deepEqual(analytics.calls().filter((call) => call[1] !== "comparison_link_copied"), beforeCopy);
   assert.equal(page.navigations.length, 2); // Dropdown and Swap only.
 });
 
 test("copy success announces and resets after two seconds, with one timer across repeat clicks and ticks", async () => {
-  const page = pageHarness(analyticsHarness());
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics);
   page.replayEffects(); // Development Strict Mode cleanup/setup must leave copying usable.
   await page.copy();
+  await page.settle();
   page.render();
   assert.equal(page.copyLabel(), "Link copied");
+  assert.equal(analytics.copyEvents().length, 1);
   assert.equal(page.status().children.join(""), "Link copied");
   assert.equal(page.timerCount(), 1);
   page.advance(1500);
   page.tick();
   assert.equal(page.copyLabel(), "Link copied");
   await page.copy();
+  await page.settle();
   page.render();
+  assert.equal(analytics.copyEvents().length, 2);
   assert.equal(page.timerCount(), 1);
   page.advance(500); // The original reset must have been cancelled.
   assert.equal(page.copyLabel(), "Link copied");
@@ -694,6 +718,8 @@ test("copy success announces and resets after two seconds, with one timer across
   assert.equal(page.copyLabel(), "Copy comparison link");
   assert.equal(page.status().children.join(""), "");
   assert.equal(page.timerCount(), 0);
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 2);
 });
 
 test("unavailable clipboard, synchronous exceptions and rejections briefly announce failure and allow retry", async () => {
@@ -704,9 +730,12 @@ test("unavailable clipboard, synchronous exceptions and rejections briefly annou
     { clipboard: { writeText: () => Promise.reject(new Error("permission denied")) } },
     { get clipboard() { throw new Error("clipboard unavailable"); } },
   ]) {
-    const page = pageHarness(analyticsHarness(), undefined, {}, { navigator });
+    const analytics = await readyAnalytics();
+    const page = pageHarness(analytics, undefined, {}, { navigator });
     await page.copy();
+    await page.settle();
     page.render();
+    assert.equal(analytics.copyEvents().length, 0);
     assert.equal(page.copyLabel(), "Copy failed");
     assert.equal(page.status().children.join(""), "Copy failed");
     page.advance(1999);
@@ -714,34 +743,62 @@ test("unavailable clipboard, synchronous exceptions and rejections briefly annou
     page.advance(1);
     assert.equal(page.copyLabel(), "Copy comparison link");
     assert.equal(page.status().children.join(""), "");
+    await page.settle();
+    assert.equal(analytics.copyEvents().length, 0);
     Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => {} } });
     await page.copy();
+    await page.settle();
     page.render();
     assert.equal(page.copyLabel(), "Link copied");
+    assert.equal(analytics.copyEvents().length, 1);
   }
 });
 
-test("rapid clicks start only one pending clipboard write", async () => {
+test("rapid clicks and re-renders track once only after clipboard success, never on the two-second reset", async () => {
   let finish;
   let writes = 0;
   const clipboardPromise = new Promise((resolve) => { finish = resolve; });
-  const page = pageHarness(analyticsHarness(), undefined, {}, {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, undefined, {}, {
     navigator: { clipboard: { writeText: () => { writes++; return clipboardPromise; } } },
   });
+  page.replayEffects(); // Exercise the Strict Mode cleanup/setup sequence.
+  page.render();
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 0);
   const first = page.copy();
   await Promise.all([page.copy(), page.copy(), page.copy()]);
   page.render();
+  page.tick();
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 0);
   assert.equal(writes, 1);
   assert.equal(page.copyLabel(), "Copy comparison link");
   assert.equal(page.timerCount(), 0);
   finish();
   await first;
+  await page.settle();
   page.render();
   assert.equal(page.copyLabel(), "Link copied");
   assert.equal(page.timerCount(), 1);
+  assert.equal(analytics.copyEvents().length, 1);
+  page.render();
+  page.render();
+  page.tick();
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 1);
+  page.advance(1999);
+  assert.equal(page.copyLabel(), "Link copied");
+  page.advance(1);
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(page.timerCount(), 0);
+  page.replayEffects();
+  page.render();
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 1);
 });
 
-test("old clipboard success or failure is ignored after a pair change, including a return to the old pair", async () => {
+test("late clipboard results leave feedback untouched after pair changes and track only the successfully copied pair", async () => {
   for (const outcome of ["resolve", "reject"]) {
     for (const returnToOriginal of [false, true]) {
       let finish;
@@ -749,7 +806,8 @@ test("old clipboard success or failure is ignored after a pair change, including
       const clipboardPromise = new Promise((resolve, reject) => {
         finish = outcome === "resolve" ? resolve : () => reject(new Error("late failure"));
       });
-      const page = pageHarness(analyticsHarness(), undefined, {}, {
+      const analytics = await readyAnalytics();
+      const page = pageHarness(analytics, undefined, {}, {
         navigator: { clipboard: { writeText: () => { writes++; return clipboardPromise; } } },
       });
       const pendingCopy = page.copy();
@@ -763,7 +821,11 @@ test("old clipboard success or failure is ignored after a pair change, including
       assert.equal(writes, 1);
       finish();
       await pendingCopy;
+      await page.settle();
       page.render();
+      assert.deepEqual(JSON.parse(JSON.stringify(analytics.copyEvents())), outcome === "resolve" ? [[
+        "event", "comparison_link_copied", { from_city_slug: "toronto", to_city_slug: "vancouver" },
+      ]] : []);
       assert.equal(page.copyLabel(), "Copy comparison link");
       assert.equal(page.status().children.join(""), "");
       assert.equal(page.timerCount(), 0);
@@ -818,7 +880,7 @@ test("unmount clears the reset timer and prevents pending success or failure fro
   }
 });
 
-test("copy success, reset and failure leave all analytics and consent calls untouched", async () => {
+test("copy tracks only with granted consent and leaves other analytics and consent calls untouched", async () => {
   for (const consent of ["absent", "denied", "granted"]) {
     const analytics = consent === "granted" ? await readyAnalytics() : analyticsHarness();
     if (consent === "denied") analytics.context.setAnalyticsConsent(false);
@@ -828,15 +890,110 @@ test("copy success, reset and failure leave all analytics and consent calls unto
     const scripts = analytics.scripts.length;
     const disabled = analytics.window["ga-disable-G-TEST"];
     await page.copy();
+    await page.settle();
     page.advance(2000);
     page.navigator.clipboard.writeText = () => Promise.reject(new Error("denied"));
     await page.copy();
     page.advance(2000);
-    assert.deepEqual(analytics.calls(), before);
+    await page.settle();
+    assert.equal(analytics.copyEvents().length, consent === "granted" ? 1 : 0);
+    assert.deepEqual(analytics.calls().filter((call) => call[1] !== "comparison_link_copied"), before);
     assert.equal(analytics.scripts.length, scripts);
     assert.equal(analytics.window["ga-disable-G-TEST"], disabled);
     assert.equal(page.navigations.length, 0);
     assert.equal(page.historyLength(), 1);
-    if (consent !== "granted") assert.equal(scripts, 0);
+    if (consent !== "granted") {
+      assert.equal(scripts, 0);
+      analytics.context.setAnalyticsConsent(true);
+      const loading = analytics.context.loadAnalytics();
+      analytics.finishLoad();
+      await loading;
+      page.render();
+      page.tick();
+      page.replayEffects();
+      await page.settle();
+      assert.equal(analytics.copyEvents().length, 0); // Acceptance must not replay earlier copies.
+    }
+  }
+});
+
+test("copy analytics shares the pending loader and sends once without delaying success feedback", async () => {
+  const analytics = analyticsHarness();
+  analytics.context.setAnalyticsConsent(true);
+  const loading = analytics.context.loadAnalytics();
+  const page = pageHarness(analytics);
+  await page.copy();
+  page.render();
+  assert.equal(page.copyLabel(), "Link copied");
+  assert.equal(analytics.scripts.length, 1);
+  assert.equal(analytics.copyEvents().length, 0);
+  page.advance(2000);
+  page.tick();
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(analytics.copyEvents().length, 0);
+  analytics.finishLoad();
+  await loading;
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 1);
+  page.render();
+  await page.settle();
+  assert.equal(analytics.copyEvents().length, 1);
+});
+
+test("withdrawal cancels pending copy events even after reacceptance, but repeated grants do not", async () => {
+  for (const choice of ["withdraw", "reaccept", "repeat-grant"]) {
+    const analytics = analyticsHarness();
+    analytics.context.setAnalyticsConsent(true);
+    const page = pageHarness(analytics);
+    await page.copy();
+    assert.equal(analytics.copyEvents().length, 0);
+    if (choice !== "repeat-grant") analytics.context.setAnalyticsConsent(false);
+    if (choice !== "withdraw") analytics.context.setAnalyticsConsent(true);
+    analytics.finishLoad();
+    await page.settle();
+    page.render();
+    assert.equal(page.copyLabel(), "Link copied");
+    assert.equal(analytics.copyEvents().length, choice === "repeat-grant" ? 1 : 0);
+  }
+});
+
+test("consent withdrawn during a pending clipboard write prevents copy tracking and loading", async () => {
+  let finish;
+  const clipboardPromise = new Promise((resolve) => { finish = resolve; });
+  const analytics = analyticsHarness();
+  analytics.context.setAnalyticsConsent(true);
+  const page = pageHarness(analytics, undefined, {}, {
+    navigator: { clipboard: { writeText: () => clipboardPromise } },
+  });
+  const operation = page.copy();
+  assert.equal(analytics.scripts.length, 0);
+  analytics.context.setAnalyticsConsent(false);
+  finish();
+  await operation;
+  await page.settle();
+  page.render();
+  assert.equal(page.copyLabel(), "Link copied");
+  assert.equal(analytics.scripts.length, 0);
+  assert.equal(analytics.copyEvents().length, 0);
+});
+
+test("analytics load or dispatch failures and development preserve successful copy feedback without events", async () => {
+  for (const mode of ["load-failure", "dispatch-failure", "development"]) {
+    const analytics = mode === "dispatch-failure" ? await readyAnalytics() : analyticsHarness(mode !== "development");
+    analytics.context.setAnalyticsConsent(true);
+    if (mode === "dispatch-failure") {
+      analytics.window.gtag = () => { throw new Error("analytics unavailable"); };
+    }
+    const page = pageHarness(analytics);
+    await page.copy();
+    if (mode === "load-failure") analytics.finishLoad("error");
+    await page.settle();
+    page.render();
+    assert.equal(page.clipboardWrites.length, 1);
+    assert.equal(page.copyLabel(), "Link copied");
+    assert.equal(analytics.copyEvents().length, 0);
+    if (mode === "development") assert.equal(analytics.scripts.length, 0);
+    page.advance(2000);
+    assert.equal(page.copyLabel(), "Copy comparison link");
   }
 });

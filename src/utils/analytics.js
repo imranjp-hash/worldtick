@@ -128,6 +128,30 @@ export async function trackTimeComparisonCompleted({ fromCitySlug, toCitySlug })
   }
 }
 
+export async function trackComparisonLinkCopied({ fromCitySlug, toCitySlug }) {
+  if (!import.meta.env.PROD || !analyticsConsentGranted) {
+    return;
+  }
+
+  const consentRevision = analyticsConsentRevision;
+
+  try {
+    const loaded = await loadAnalytics();
+
+    // Withdrawal cancels pending events, even if consent is granted again.
+    if (!loaded || !analyticsConsentGranted || consentRevision !== analyticsConsentRevision) {
+      return;
+    }
+
+    getGtag()("event", "comparison_link_copied", {
+      from_city_slug: fromCitySlug,
+      to_city_slug: toCitySlug,
+    });
+  } catch {
+    // Analytics failures must never affect the copy experience.
+  }
+}
+
 export function trackPageView({ path, title }) {
   if (!import.meta.env.PROD || !analyticsConsentGranted || lastTrackedPage === path) {
     return;
