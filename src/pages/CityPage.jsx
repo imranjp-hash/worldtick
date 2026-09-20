@@ -32,7 +32,7 @@ function getDifferenceText(fromCity, toCity, date) {
     return `${toCity.name} is ${differenceText} behind ${fromCity.name}`;
   }
 
-  return `${toCity.name} and ${fromCity.name} are in the same time zone`;
+  return `${toCity.name} and ${fromCity.name} currently have the same UTC offset`;
 }
 
 export default function CityPage() {

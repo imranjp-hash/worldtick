@@ -178,7 +178,7 @@ export default function TimeDifferencePage() {
       ? `${toCity.name} is ahead of ${fromCity.name}`
       : differenceMinutes < 0
       ? `${toCity.name} is behind ${fromCity.name}`
-      : `${toCity.name} and ${fromCity.name} are in the same time zone`;
+      : `${toCity.name} and ${fromCity.name} currently have the same UTC offset`;
 const fromCityTime = formatTimeInZone(fromCity.timezone, now, {
   hour: "numeric",
   minute: "2-digit",

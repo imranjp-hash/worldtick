@@ -56,7 +56,7 @@ export default function ComparisonPage() {
       ? `${cityB.name} is ahead of ${cityA.name}`
       : differenceMinutes < 0
       ? `${cityB.name} is behind ${cityA.name}`
-      : `${cityB.name} and ${cityA.name} are in the same time zone`;
+      : `${cityB.name} and ${cityA.name} currently have the same UTC offset`;
 
   return (
     <div style={styles.page}>
