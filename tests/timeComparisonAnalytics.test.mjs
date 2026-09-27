@@ -5,6 +5,7 @@ import vm from "node:vm";
 import { transformWithOxc } from "vite";
 import { cities } from "../src/data/cities.js";
 import * as dateTime from "../src/utils/dateTime.js";
+import * as timeComparisonUrl from "../src/utils/timeComparisonUrl.js";
 
 const analyticsSource = await readFile(new URL("../src/utils/analytics.js", import.meta.url), "utf8");
 const pageSource = await readFile(new URL("../src/pages/TimeDifferencePage.jsx", import.meta.url), "utf8");
@@ -93,6 +94,7 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     },
     getTimeDifferenceMinutes: calculate,
     convertLocalDateTime: options.convertLocalDateTime ?? dateTime.convertLocalDateTime,
+    ...timeComparisonUrl,
     cities,
     siteConfig: { publicSiteName: "Test" },
     getSiteUrl: options.getSiteUrl ?? ((path) => `https://example.test${path}`),
@@ -255,7 +257,7 @@ async function readyAnalytics() {
   return analytics;
 }
 
-test("specific-date mode is opt-in, retains values, waits for complete input and keeps copy city-pair-only", async () => {
+test("specific-date mode is opt-in, retains values, waits for complete input and copies full state", async () => {
   const analytics = await readyAnalytics();
   let conversions = 0;
   const disambiguations = [];
@@ -273,12 +275,14 @@ test("specific-date mode is opt-in, retains values, waits for complete input and
 
   page.setMode("specific");
   assert.equal(page.mode(), "Specific date & time");
-  assert.equal(page.copyLabel(), "Copy city-pair link");
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(page.copyButton().props.disabled, true);
   assert.equal(conversions, 0);
   page.setInput("date", "2020-01-15");
   assert.equal(conversions, 0);
   page.setInput("time", "09:00");
   assert.equal(conversions, 1);
+  assert.equal(page.copyButton().props.disabled, false);
 
   page.setMode("current");
   assert.equal(page.copyLabel(), "Copy comparison link");
@@ -325,6 +329,233 @@ test("specific conversion uses the selected instant and renders complete same-, 
   previousDay.setInput("time", "00:15");
   assert.match(previousDay.text(), /Thursday, January 14, 2027/);
   assert.match(previousDay.text(), /Previous day/);
+});
+
+test("ordinary shared specific URLs hydrate exactly without analytics or initial rewriting", async () => {
+  const analytics = await readyAnalytics();
+  const search = "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00&utm_source=shared";
+  const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search, hash: "#calculator", state: { source: "shared" },
+  });
+  assert.equal(page.mode(), "Specific date & time");
+  assert.deepEqual(page.pair(), ["toronto", "london"]);
+  assert.equal(page.input("date").props.value, "2027-01-15");
+  assert.equal(page.input("time").props.value, "09:00");
+  assert.match(page.text(), /London is ahead of Toronto at this time/);
+  assert.equal(page.copyButton().props.disabled, false);
+  assert.equal(page.location().search, search);
+  assert.equal(page.location().hash, "#calculator");
+  assert.deepEqual(page.location().state, { source: "shared" });
+  assert.equal(page.navigations.length, 0);
+  assert.equal(analytics.events().length, 0);
+  assert.equal(analytics.copyEvents().length, 0);
+});
+
+test("shared ambiguous URLs restore either occurrence by interpretation", async () => {
+  for (const [occurrence, destinationTime] of [["earlier", "5:30 AM"], ["later", "6:30 AM"]]) {
+    const analytics = await readyAnalytics();
+    const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+      search: `?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=${occurrence}`,
+    });
+    assert.equal(page.radios().find((radio) => radio.props.value === occurrence).props.checked, true);
+    assert.match(page.text(), new RegExp(destinationTime));
+    assert.equal(page.copyButton().props.disabled, false);
+    assert.equal(analytics.events().length, 0);
+    assert.equal(analytics.copyEvents().length, 0);
+  }
+});
+
+test("unresolved, invalid, incomplete and nonexistent shared state cannot copy a conversion", async () => {
+  for (const [search, message] of [
+    ["?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30", /Choose the first or second occurrence/],
+    ["?from=toronto&to=london&mode=specific&date=2027-01-15", /incomplete/],
+    ["?from=toronto&to=london&mode=specific&date=2027-02-30&time=09%3A00", /valid calendar date/],
+    ["?from=toronto&to=london&mode=specific&date=2027-03-14&time=02%3A30", /doesn't occur/],
+    ["?from=unknown&to=london&mode=specific&date=2027-01-15&time=09%3A00", /unknown or missing city/],
+    ["?from=toronto&to=london&date=2027-01-15&time=09%3A00", /invalid/],
+    ["?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00&occurrence=later", /happens only once/],
+  ]) {
+    const analytics = await readyAnalytics();
+    const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, { search });
+    assert.equal(page.mode(), "Specific date & time", search);
+    assert.equal(page.copyButton().props.disabled, true, search);
+    assert.match(page.text(), message, search);
+    assert.doesNotMatch(page.text(), /currently have the same UTC offset|currently.*ahead|currently.*behind/, search);
+    await page.copy();
+    await page.settle();
+    assert.deepEqual(page.clipboardWrites, [], search);
+    assert.equal(analytics.copyEvents().length, 0, search);
+    assert.equal(page.navigations.length, 0, search);
+  }
+});
+
+test("mode uses push while specific edits and occurrence use replace", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london&campaign=test",
+    hash: "#calculator",
+    state: { returnTo: "/cities" },
+  });
+  page.setMode("specific");
+  assert.equal(page.navigations.at(-1).options.replace, false);
+  assert.equal(page.historyLength(), 2);
+  page.setInput("date", "2027-11-07");
+  assert.equal(page.navigations.at(-1).options.replace, true);
+  assert.equal(page.historyLength(), 2);
+  page.setInput("time", "01:30");
+  assert.equal(page.navigations.at(-1).options.replace, true);
+  page.chooseOccurrence("later");
+  assert.equal(page.navigations.at(-1).options.replace, true);
+  assert.equal(page.historyLength(), 2);
+  assert.equal(page.location().search, "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later&campaign=test");
+  assert.equal(page.location().hash, "#calculator");
+  assert.deepEqual(page.location().state, { returnTo: "/cities" });
+  page.setMode("current");
+  assert.equal(page.navigations.at(-1).options.replace, false);
+  assert.equal(page.historyLength(), 3);
+  assert.equal(page.location().search, "?from=toronto&to=london&campaign=test");
+});
+
+test("back and forward restore exact current and specific URL state without stale occurrence", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  });
+  page.setMode("specific");
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+  page.chooseOccurrence("later");
+  page.setMode("current");
+  assert.equal(page.mode(), "Current time");
+
+  page.back();
+  assert.equal(page.mode(), "Specific date & time");
+  assert.deepEqual(page.pair(), ["toronto", "london"]);
+  assert.equal(page.input("date").props.value, "2027-11-07");
+  assert.equal(page.input("time").props.value, "01:30");
+  assert.equal(page.radios().find((radio) => radio.props.value === "later").props.checked, true);
+
+  page.back();
+  assert.equal(page.mode(), "Current time");
+  page.forward();
+  assert.equal(page.mode(), "Specific date & time");
+  assert.equal(page.radios().find((radio) => radio.props.value === "later").props.checked, true);
+  page.select(0, "new-york");
+  page.render();
+  await page.settle();
+  assert.equal(page.radios().length, 2);
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+  assert.equal(page.location().search.includes("occurrence="), false);
+  assert.equal(analytics.events().length, 1);
+  assert.equal(analytics.copyEvents().length, 0);
+});
+
+test("current-mode source changes retain wall fields but invalidate the saved occurrence context", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later",
+  });
+
+  page.setMode("current");
+  page.select(0, "new-york");
+  page.render();
+  page.setMode("specific");
+
+  assert.deepEqual(page.pair(), ["new-york", "london"]);
+  assert.equal(page.input("date").props.value, "2027-11-07");
+  assert.equal(page.input("time").props.value, "01:30");
+  assert.equal(page.radios().length, 2);
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+  assert.equal(page.location().search.includes("occurrence="), false);
+  assert.match(page.text(), /Choose the first or second occurrence above/);
+});
+
+test("current-mode Swap retains wall fields but invalidates the saved occurrence context", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later",
+  });
+
+  page.setMode("current");
+  page.swap();
+  page.render();
+  page.setMode("specific");
+
+  assert.deepEqual(page.pair(), ["london", "toronto"]);
+  assert.equal(page.input("date").props.value, "2027-11-07");
+  assert.equal(page.input("time").props.value, "01:30");
+  assert.equal(page.location().search.includes("occurrence="), false);
+  assert.equal(page.radios().length, 0);
+  assert.equal(page.copyButton().props.disabled, false);
+});
+
+test("an unchanged source restores its context-bound occurrence, while a fresh Current mount has no hidden draft", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later",
+  });
+  page.setMode("current");
+  page.setMode("specific");
+  assert.equal(page.input("date").props.value, "2027-11-07");
+  assert.equal(page.input("time").props.value, "01:30");
+  assert.equal(page.radios().find((radio) => radio.props.value === "later").props.checked, true);
+
+  const freshPage = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  });
+  freshPage.setMode("specific");
+  assert.equal(freshPage.input("date").props.value, "");
+  assert.equal(freshPage.input("time").props.value, "");
+  assert.equal(freshPage.radios().length, 0);
+});
+
+test("history around a Current source change never applies the old occurrence to the new source", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later",
+  });
+  page.setMode("current");
+  page.select(0, "new-york");
+  page.render();
+  page.setMode("specific");
+
+  page.back();
+  assert.equal(page.mode(), "Current time");
+  assert.deepEqual(page.pair(), ["new-york", "london"]);
+  page.back();
+  assert.equal(page.mode(), "Specific date & time");
+  assert.deepEqual(page.pair(), ["toronto", "london"]);
+  assert.equal(page.radios().find((radio) => radio.props.value === "later").props.checked, true);
+  page.forward();
+  assert.equal(page.mode(), "Current time");
+  page.forward();
+  assert.deepEqual(page.pair(), ["new-york", "london"]);
+  assert.equal(page.radios().length, 2);
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+  assert.equal(page.location().search.includes("occurrence="), false);
+});
+
+test("an invalid specific city is explicit, has no fallback comparison link and recovers by selection", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=unknown&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  });
+
+  assert.deepEqual(page.pair(), ["", "london"]);
+  assert.match(page.text(), /Choose a valid source city/);
+  assert.match(page.text(), /unknown or missing city/);
+  assert.doesNotMatch(page.text(), /London is ahead of Toronto at this time/);
+  assert.equal(page.links().some((link) => String(link.props.to).startsWith("/compare/")), false);
+  assert.equal(page.copyButton().props.disabled, true);
+
+  page.select(0, "toronto");
+  page.render();
+  assert.deepEqual(page.pair(), ["toronto", "london"]);
+  assert.match(page.text(), /London is ahead of Toronto at this time/);
+  assert.equal(page.links().some((link) => link.props.to === "/compare/toronto/london"), true);
+  assert.equal(page.copyButton().props.disabled, false);
+
+  const incompleteInvalid = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=unknown&to=also-unknown&mode=specific",
+  });
+  assert.match(incompleteInvalid.text(), /in the source city to see the time in the destination city/);
+  assert.equal(incompleteInvalid.links().some(
+    (link) => String(link.props.to).startsWith("/compare/"),
+  ), false);
 });
 
 test("nonexistent local time remains entered, is accessible and has no destination conversion", async () => {
@@ -428,25 +659,21 @@ test("ambiguous occurrence is context-bound, uses one engine evaluation and radi
   assert.equal(page.radios().some((radio) => radio.props.checked), false);
 });
 
-test("browser forward navigation clears an ambiguous occurrence before resolving the new source context", async () => {
+test("browser forward navigation restores the occurrence encoded by each specific URL", async () => {
   const analytics = await readyAnalytics();
   let conversions = 0;
   const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
-    search: "?from=toronto&to=london",
+    search: "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later",
   }, {
     convertLocalDateTime(input) {
       conversions += 1;
       return dateTime.convertLocalDateTime(input);
     },
   });
-  page.visit("?from=new-york&to=london");
+  page.visit("?from=new-york&to=london&mode=specific&date=2027-11-07&time=01%3A30");
   page.back();
-  page.setMode("specific");
-  page.setInput("date", "2027-11-07");
-  page.setInput("time", "01:30");
-  page.chooseOccurrence("later");
   assert.match(page.text(), /London is ahead of Toronto at this time/);
-  assert.equal(conversions, 1);
+  assert.equal(conversions, 3);
 
   page.forward();
   assert.equal(page.input("date").props.value, "2027-11-07");
@@ -455,12 +682,13 @@ test("browser forward navigation clears an ambiguous occurrence before resolving
   assert.equal(page.radios().some((radio) => radio.props.checked), false);
   assert.match(page.text(), /Choose the first or second occurrence above/);
   assert.doesNotMatch(page.text(), /London is ahead of New York at this time/);
-  assert.equal(conversions, 2);
+  assert.equal(conversions, 4);
   assert.equal(analytics.events().length, 0);
 
+  const conversionsBeforeChoice = conversions;
   page.chooseOccurrence("earlier");
   assert.match(page.text(), /London is ahead of New York at this time/);
-  assert.equal(conversions, 2);
+  assert.equal(conversions, conversionsBeforeChoice);
   assert.equal(analytics.events().length, 0);
 });
 
@@ -488,12 +716,13 @@ test("specific swap preserves wall time, resets occurrence and keeps URL, analyt
   assert.equal(page.location().hash, "#calculator");
   assert.deepEqual(page.location().state, { returnTo: "/cities" });
   assert.equal(page.location().search.includes("campaign=spring"), true);
-  assert.equal(page.location().search.includes("date="), false);
-  assert.equal(page.location().search.includes("time="), false);
-  assert.equal(page.copyLabel(), "Copy city-pair link");
+  assert.equal(page.location().search.includes("date=2027-11-07"), true);
+  assert.equal(page.location().search.includes("time=01%3A30"), true);
+  assert.equal(page.location().search.includes("occurrence="), false);
+  assert.equal(page.copyLabel(), "Copy comparison link");
   await page.copy();
   assert.deepEqual(page.clipboardWrites, [
-    "https://example.test/time-difference?from=london&to=toronto",
+    "https://example.test/time-difference?from=london&to=toronto&mode=specific&date=2027-11-07&time=01%3A30",
   ]);
 });
 
@@ -977,6 +1206,69 @@ test("copy uses the production utility and tracks exactly the canonical slugs wi
     assert.equal(page.copyButton().props.key, undefined);
     assert.equal(page.status().props["aria-atomic"], "true");
   }
+});
+
+test("specific copy is canonical, strips extras and preserves the analytics contract", async () => {
+  for (const [search, expected] of [
+    [
+      "?campaign=test&from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00&tag=one&tag=two",
+      "https://www.youhora.com/time-difference?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+    ],
+    [
+      "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later&utm_source=shared",
+      "https://www.youhora.com/time-difference?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later",
+    ],
+  ]) {
+    const analytics = await readyAnalytics();
+    const page = pageHarness(analytics, undefined, {
+      search, hash: "#private", state: { private: true },
+    }, { getSiteUrl: siteContext.getSiteUrl });
+    const location = page.location();
+    await page.copy();
+    await page.settle();
+    page.render();
+    assert.deepEqual(page.clipboardWrites, [expected]);
+    assert.deepEqual(JSON.parse(JSON.stringify(analytics.copyEvents())), [[
+      "event", "comparison_link_copied", {
+        from_city_slug: "toronto",
+        to_city_slug: "london",
+      },
+    ]]);
+    assert.equal(analytics.events().length, 0);
+    assert.equal(page.location(), location);
+    assert.equal(page.historyLength(), 1);
+    assert.equal(page.navigations.length, 0);
+  }
+});
+
+test("specific date, time and occurrence changes invalidate stale copy feedback by full target", async () => {
+  const page = pageHarness(analyticsHarness(), undefined, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  });
+  await page.copy();
+  page.render();
+  assert.equal(page.copyLabel(), "Link copied");
+  assert.equal(page.timerCount(), 1);
+
+  page.setInput("time", "10:00");
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  assert.equal(page.timerCount(), 0);
+  await page.copy();
+  page.render();
+  assert.equal(page.copyLabel(), "Link copied");
+
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+  assert.equal(page.copyButton().props.disabled, true);
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  page.chooseOccurrence("earlier");
+  assert.equal(page.copyButton().props.disabled, false);
+  await page.copy();
+  assert.deepEqual(page.clipboardWrites, [
+    "https://example.test/time-difference?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+    "https://example.test/time-difference?from=toronto&to=london&mode=specific&date=2027-01-15&time=10%3A00",
+    "https://example.test/time-difference?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=earlier",
+  ]);
 });
 
 test("copy tracks dropdown, swap and history results without changing other analytics calls", async () => {

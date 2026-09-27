@@ -12,6 +12,13 @@ import {
 import useNow from "../hooks/useNow";
 import { getSiteUrl, siteConfig } from "../config/site";
 import { trackComparisonLinkCopied, trackTimeComparisonCompleted } from "../utils/analytics";
+import {
+  buildCanonicalComparisonPath,
+  buildInteractiveComparisonSearch,
+  classifyTimeComparisonSearch,
+  getTimeComparisonClassificationSearch,
+  parseTimeComparisonSearch,
+} from "../utils/timeComparisonUrl";
 
 const fullDateOptions = {
   weekday: "long",
@@ -27,19 +34,6 @@ const localTimeOptions = {
   hour12: true,
 };
 
-function resolveCityPair(search) {
-  const params = new URLSearchParams(search);
-  const from = params.getAll("from");
-  const to = params.getAll("to");
-  const defaultPair = { fromCity: cities[0], toCity: cities[1] };
-
-  if (from.length !== 1 || to.length !== 1) return defaultPair;
-
-  const fromCity = cities.find((city) => city.slug === from[0]);
-  const toCity = cities.find((city) => city.slug === to[0]);
-  return fromCity && toCity ? { fromCity, toCity } : defaultPair;
-}
-
 function formatPlainDate(date) {
   return formatDateInZone("UTC", new Date(`${date}T12:00:00Z`), fullDateOptions);
 }
@@ -53,29 +47,59 @@ function describeDayDifference(dayDifference) {
     : `${dayDifference} days later`;
 }
 
+function occurrenceContext(sourceTimeZone, date, time) {
+  return `${sourceTimeZone}\u0000${date}\u0000${time}`;
+}
+
+function contextBoundOccurrence(value, sourceTimeZone, date, time) {
+  return value === "earlier" || value === "later"
+    ? { value, context: occurrenceContext(sourceTimeZone, date, time) }
+    : null;
+}
+
 export default function TimeDifferencePage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const resolvedPair = resolveCityPair(location.search);
-  const { fromCity, toCity } = resolvedPair;
-  const activePair = useRef(null);
+  const classificationSearch = getTimeComparisonClassificationSearch(location.search);
+  const classifiedConversion = useMemo(
+    () => classifyTimeComparisonSearch(classificationSearch, convertLocalDateTime),
+    [classificationSearch],
+  );
+  const resolvedState = useMemo(
+    () => parseTimeComparisonSearch(location.search, () => classifiedConversion),
+    [classifiedConversion, location.search],
+  );
+  const { fromCity, toCity, mode, date, time } = resolvedState;
+  const activeComparison = useRef(null);
+  const specificDraft = useRef({ date: "", time: "", occurrenceSelection: null });
   const now = useNow();
-  const [mode, setMode] = useState("current");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [occurrenceSelection, setOccurrenceSelection] = useState(null);
-  const comparisonUrl = getSiteUrl(`/time-difference?${new URLSearchParams({
-    from: fromCity.slug,
-    to: toCity.slug,
-  })}`);
-  const [copyFeedback, setCopyFeedback] = useState({ url: comparisonUrl, message: "" });
+
+  const canonicalPath = buildCanonicalComparisonPath(resolvedState);
+  const comparisonUrl = canonicalPath ? getSiteUrl(canonicalPath) : null;
+  const copyIdentity = comparisonUrl ?? `unshareable:${location.search}`;
+  const [copyFeedback, setCopyFeedback] = useState({ url: copyIdentity, message: "" });
   const copyPending = useRef(false);
   const copyScope = useRef(null);
   const copyResetTimer = useRef(null);
 
-  // Reset with the rendered pair, including a return to a previously copied pair.
-  if (copyFeedback.url !== comparisonUrl) {
-    setCopyFeedback({ url: comparisonUrl, message: "" });
+  useLayoutEffect(() => {
+    if (mode === "specific") {
+      specificDraft.current = {
+        date,
+        time,
+        occurrenceSelection: contextBoundOccurrence(
+          resolvedState.occurrence,
+          fromCity.timezone,
+          date,
+          time,
+        ),
+      };
+    }
+  }, [date, fromCity.timezone, mode, resolvedState.occurrence, time]);
+
+  // Reset with the complete rendered copy target, including history returns.
+  if (copyFeedback.url !== copyIdentity) {
+    setCopyFeedback({ url: copyIdentity, message: "" });
   }
 
   useLayoutEffect(() => {
@@ -85,15 +109,15 @@ export default function TimeDifferencePage() {
       scope.active = false;
       window.clearTimeout(copyResetTimer.current);
     };
-  }, [comparisonUrl]);
+  }, [copyIdentity]);
 
   async function handleCopyComparisonLink() {
     const scope = copyScope.current;
-    if (copyPending.current || !scope?.active) return;
+    if (!comparisonUrl || copyPending.current || !scope?.active) return;
 
     copyPending.current = true;
     window.clearTimeout(copyResetTimer.current);
-    setCopyFeedback({ url: comparisonUrl, message: "" });
+    setCopyFeedback({ url: copyIdentity, message: "" });
     let message = "Copy failed";
 
     try {
@@ -113,42 +137,101 @@ export default function TimeDifferencePage() {
 
     if (!scope.active) return;
 
-    setCopyFeedback({ url: comparisonUrl, message });
+    setCopyFeedback({ url: copyIdentity, message });
     copyResetTimer.current = window.setTimeout(() => {
-      if (scope.active) setCopyFeedback({ url: comparisonUrl, message: "" });
+      if (scope.active) setCopyFeedback({ url: copyIdentity, message: "" });
       copyResetTimer.current = null;
     }, 2000);
   }
 
-  function getActivePair() {
-    // A new router location invalidates any pending pair from the previous visit.
-    return activePair.current?.location === location
-      ? activePair.current.pair
-      : resolvedPair;
+  function getActiveComparison() {
+    // A new router location invalidates pending state from the previous visit.
+    return activeComparison.current?.location === location
+      ? activeComparison.current.state
+      : resolvedState;
   }
 
-  function updatePair(nextPair) {
-    const params = new URLSearchParams(location.search);
-    params.set("from", nextPair.fromCity.slug);
-    params.set("to", nextPair.toCity.slug);
-    // Preserve rapid consecutive actions before the router's next render.
-    activePair.current = { location, pair: nextPair };
+  function updateComparison(nextState, { replace }) {
+    const search = buildInteractiveComparisonSearch(location.search, nextState);
+    activeComparison.current = { location, state: nextState };
     navigate(
-      { pathname: location.pathname, search: `?${params}`, hash: location.hash },
-      { replace: true, state: location.state },
+      { pathname: location.pathname, search, hash: location.hash },
+      { replace, state: location.state },
     );
+  }
+
+  function handleModeChange(nextMode) {
+    const current = getActiveComparison();
+    if (current.mode === nextMode) return;
+
+    if (nextMode === "current") {
+      if (current.mode === "specific") {
+        specificDraft.current = {
+          date: current.date,
+          time: current.time,
+          occurrenceSelection: contextBoundOccurrence(
+            current.occurrence,
+            current.fromCity.timezone,
+            current.date,
+            current.time,
+          ),
+        };
+      }
+      updateComparison({ ...current, mode: "current", date: "", time: "", occurrence: null }, { replace: false });
+      return;
+    }
+
+    const draft = specificDraft.current;
+    const restoredOccurrence = draft.occurrenceSelection?.context === occurrenceContext(
+      current.fromCity.timezone,
+      draft.date,
+      draft.time,
+    )
+      ? draft.occurrenceSelection.value
+      : null;
+    updateComparison({
+      ...current,
+      mode: "specific",
+      date: draft.date,
+      time: draft.time,
+      occurrence: restoredOccurrence,
+      shareable: false,
+    }, { replace: false });
   }
 
   function handleCitySelection(field, slug) {
     const city = cities.find((candidate) => candidate.slug === slug);
-    const currentPair = getActivePair();
-    if (!city || currentPair[field].slug === city.slug) return;
+    const current = getActiveComparison();
+    if (!city || (current[field].slug === city.slug && (
+      current.mode === "current" || current.cityParametersValid
+    ))) return;
 
-    const nextPair = { ...currentPair, [field]: city };
+    const nextState = {
+      ...current,
+      [field]: city,
+      [`${field}ParameterValid`]: true,
+      occurrence: field === "fromCity" ? null : current.occurrence,
+    };
+    nextState.cityParametersValid = nextState.fromCityParameterValid !== false
+      && nextState.toCityParameterValid !== false;
+    if (nextState.mode === "specific") {
+      specificDraft.current = {
+        date: nextState.date,
+        time: nextState.time,
+        occurrenceSelection: contextBoundOccurrence(
+          nextState.occurrence,
+          nextState.fromCity.timezone,
+          nextState.date,
+          nextState.time,
+        ),
+      };
+    } else if (field === "fromCity") {
+      specificDraft.current.occurrenceSelection = null;
+    }
     try {
       const result = getTimeDifferenceMinutes(
-        nextPair.fromCity.timezone,
-        nextPair.toCity.timezone,
+        nextState.fromCity.timezone,
+        nextState.toCity.timezone,
         now,
       );
       if (!Number.isFinite(result)) return;
@@ -156,21 +239,61 @@ export default function TimeDifferencePage() {
       return;
     }
 
-    updatePair(nextPair);
-    if (field === "fromCity") setOccurrenceSelection(null);
+    updateComparison(nextState, { replace: true });
 
-    if (nextPair.fromCity.slug !== nextPair.toCity.slug) {
+    if (nextState.cityParametersValid
+      && current[field].slug !== city.slug
+      && nextState.fromCity.slug !== nextState.toCity.slug) {
       void trackTimeComparisonCompleted({
-        fromCitySlug: nextPair.fromCity.slug,
-        toCitySlug: nextPair.toCity.slug,
+        fromCitySlug: nextState.fromCity.slug,
+        toCitySlug: nextState.toCity.slug,
       });
     }
   }
 
   function handleSwapCities() {
-    const { fromCity: currentFrom, toCity: currentTo } = getActivePair();
-    setOccurrenceSelection(null);
-    updatePair({ fromCity: currentTo, toCity: currentFrom });
+    const current = getActiveComparison();
+    const nextState = {
+      ...current,
+      fromCity: current.toCity,
+      toCity: current.fromCity,
+      fromCityParameterValid: current.toCityParameterValid,
+      toCityParameterValid: current.fromCityParameterValid,
+      occurrence: null,
+    };
+    if (nextState.mode === "specific") {
+      specificDraft.current = { date: nextState.date, time: nextState.time, occurrenceSelection: null };
+    } else {
+      specificDraft.current.occurrenceSelection = null;
+    }
+    updateComparison(nextState, { replace: true });
+  }
+
+  function handleSpecificFieldChange(field, value) {
+    const current = getActiveComparison();
+    const nextState = {
+      ...current,
+      mode: "specific",
+      [field]: value,
+      occurrence: null,
+    };
+    specificDraft.current = { date: nextState.date, time: nextState.time, occurrenceSelection: null };
+    updateComparison(nextState, { replace: true });
+  }
+
+  function handleOccurrenceChange(occurrence) {
+    const current = getActiveComparison();
+    specificDraft.current = {
+      date: current.date,
+      time: current.time,
+      occurrenceSelection: contextBoundOccurrence(
+        occurrence,
+        current.fromCity.timezone,
+        current.date,
+        current.time,
+      ),
+    };
+    updateComparison({ ...current, occurrence }, { replace: true });
   }
 
   const calculatorStructuredData = {
@@ -193,39 +316,12 @@ export default function TimeDifferencePage() {
   const fromCityTime = formatTimeInZone(fromCity.timezone, now, localTimeOptions);
   const toCityTime = formatTimeInZone(toCity.timezone, now, localTimeOptions);
 
-  const occurrenceContext = `${fromCity.timezone}\u0000${date}\u0000${time}`;
-  const selectedOccurrence = occurrenceSelection?.context === occurrenceContext
-    ? occurrenceSelection.value
-    : "reject";
-
-  // A router-driven source change must invalidate the stored choice before commit.
-  // The derived selection above is already "reject" for this render, so stale state
-  // can never resolve an ambiguous instant even once.
-  if (occurrenceSelection && occurrenceSelection.context !== occurrenceContext) {
-    setOccurrenceSelection(null);
-  }
-
-  const specificConversion = useMemo(() => {
-    if (mode !== "specific" || !date || !time) return null;
-    return convertLocalDateTime({
-      date,
-      time,
-      sourceTimeZone: fromCity.timezone,
-      destinationTimeZone: toCity.timezone,
-      disambiguation: "reject",
-    });
-  }, [date, fromCity.timezone, mode, time, toCity.timezone]);
+  const specificConversion = resolvedState.conversion;
 
   const ambiguousConversion = specificConversion?.status === "ambiguous"
     ? specificConversion
     : null;
-  const successfulConversion = specificConversion?.status === "success"
-    ? specificConversion
-    : ambiguousConversion && selectedOccurrence !== "reject"
-    ? ambiguousConversion.candidates.find(
-        (candidate) => candidate.interpretation === selectedOccurrence,
-      ) ?? null
-    : null;
+  const successfulConversion = resolvedState.selectedConversion;
   const selectedInstant = successfulConversion
     ? new Date(successfulConversion.epochMilliseconds)
     : null;
@@ -246,6 +342,11 @@ export default function TimeDifferencePage() {
     ? specificConversion.error.field
     : null;
   const hasNonexistentTime = specificConversion?.status === "nonexistent";
+  const hasSharedStateError = mode === "specific" && resolvedState.status === "invalid";
+  const fromCityIdentityValid = mode !== "specific" || resolvedState.fromCityParameterValid !== false;
+  const toCityIdentityValid = mode !== "specific" || resolvedState.toCityParameterValid !== false;
+  const sourceCityLabel = fromCityIdentityValid ? fromCity.name : "the source city";
+  const destinationCityLabel = toCityIdentityValid ? toCity.name : "the destination city";
   const inputErrorId = "specific-time-error";
 
   return (
@@ -276,7 +377,7 @@ export default function TimeDifferencePage() {
             type="button"
             className={mode === "current" ? "is-active" : ""}
             aria-pressed={mode === "current"}
-            onClick={() => setMode("current")}
+            onClick={() => handleModeChange("current")}
           >
             Current time
           </button>
@@ -285,7 +386,7 @@ export default function TimeDifferencePage() {
             className={mode === "specific" ? "is-active" : ""}
             aria-pressed={mode === "specific"}
             aria-controls="specific-date-time-controls"
-            onClick={() => setMode("specific")}
+            onClick={() => handleModeChange("specific")}
           >
             Specific date &amp; time
           </button>
@@ -306,7 +407,7 @@ export default function TimeDifferencePage() {
             </label>
             <select
               id="time-difference-from-city"
-              value={fromCity.slug}
+              value={fromCityIdentityValid ? fromCity.slug : ""}
               onChange={(event) => handleCitySelection("fromCity", event.target.value)}
               style={{
                 width: "100%",
@@ -318,6 +419,7 @@ export default function TimeDifferencePage() {
                 minWidth: 0,
               }}
             >
+              {!fromCityIdentityValid && <option value="">Choose a valid source city</option>}
               {cities.map((city) => (
                 <option key={city.slug} value={city.slug}>
                   {city.name}, {city.country}
@@ -331,7 +433,7 @@ export default function TimeDifferencePage() {
             </label>
             <select
               id="time-difference-to-city"
-              value={toCity.slug}
+              value={toCityIdentityValid ? toCity.slug : ""}
               onChange={(event) => handleCitySelection("toCity", event.target.value)}
               style={{
                 width: "100%",
@@ -343,6 +445,7 @@ export default function TimeDifferencePage() {
                 minWidth: 0,
               }}
             >
+              {!toCityIdentityValid && <option value="">Choose a valid destination city</option>}
               {cities.map((city) => (
                 <option key={city.slug} value={city.slug}>
                   {city.name}, {city.country}
@@ -376,8 +479,8 @@ export default function TimeDifferencePage() {
             className="specific-date-time-panel"
             aria-labelledby="specific-date-time-heading"
           >
-            <h2 id="specific-date-time-heading">Date and time in {fromCity.name}</h2>
-            <p>Enter the local calendar date and clock time in {fromCity.name}.</p>
+            <h2 id="specific-date-time-heading">Date and time in {sourceCityLabel}</h2>
+            <p>Enter the local calendar date and clock time in {sourceCityLabel}.</p>
             <div className="specific-date-time-fields">
               <div>
                 <label htmlFor="specific-date">Date</label>
@@ -387,10 +490,7 @@ export default function TimeDifferencePage() {
                   value={date}
                   aria-invalid={invalidField === "date" || undefined}
                   aria-describedby={invalidField === "date" ? inputErrorId : undefined}
-                  onChange={(event) => {
-                    setDate(event.target.value);
-                    setOccurrenceSelection(null);
-                  }}
+                  onChange={(event) => handleSpecificFieldChange("date", event.target.value)}
                 />
               </div>
               <div>
@@ -401,10 +501,7 @@ export default function TimeDifferencePage() {
                   value={time}
                   aria-invalid={(invalidField === "time" || hasNonexistentTime) || undefined}
                   aria-describedby={(invalidField === "time" || hasNonexistentTime) ? inputErrorId : undefined}
-                  onChange={(event) => {
-                    setTime(event.target.value);
-                    setOccurrenceSelection(null);
-                  }}
+                  onChange={(event) => handleSpecificFieldChange("time", event.target.value)}
                 />
               </div>
             </div>
@@ -425,6 +522,19 @@ export default function TimeDifferencePage() {
                   : "This conversion could not be completed. Check the selected values."}
               </p>
             )}
+            {hasSharedStateError && specificConversion?.status !== "invalid" && (
+              <p id={inputErrorId} className="specific-date-time-error" role="alert">
+                {resolvedState.issue === "INCOMPLETE"
+                  ? "This shared comparison is incomplete. Choose both a date and local time."
+                  : resolvedState.issue === "INAPPLICABLE_OCCURRENCE"
+                  ? "This shared link specifies an occurrence for a local time that happens only once."
+                  : resolvedState.issue === "INVALID_OCCURRENCE"
+                  ? "This shared link has an invalid occurrence. Choose the first or second occurrence if prompted."
+                  : resolvedState.issue === "INVALID_CITY"
+                  ? "This shared link contains an unknown or missing city. Choose both cities to continue."
+                  : "This shared comparison link is invalid. Check the cities, date, and time to continue."}
+              </p>
+            )}
 
             {ambiguousConversion?.status === "ambiguous" && (
               <fieldset className="specific-occurrence-options">
@@ -434,7 +544,7 @@ export default function TimeDifferencePage() {
                 </legend>
                 {ambiguousConversion.candidates.map((candidate, index) => {
                   const candidateInstant = new Date(candidate.epochMilliseconds);
-                  const value = index === 0 ? "earlier" : "later";
+                  const value = candidate.interpretation;
                   const choiceId = `specific-occurrence-${value}`;
                   return (
                     <div key={value} className="specific-occurrence-choice">
@@ -443,11 +553,8 @@ export default function TimeDifferencePage() {
                         type="radio"
                         name="specific-time-occurrence"
                         value={value}
-                        checked={selectedOccurrence === value}
-                        onChange={() => setOccurrenceSelection({
-                          context: occurrenceContext,
-                          value,
-                        })}
+                        checked={resolvedState.occurrence === value}
+                        onChange={() => handleOccurrenceChange(value)}
                       />
                       <label htmlFor={choiceId}>
                         <strong>{index === 0 ? "First occurrence" : "Second occurrence"}</strong>
@@ -520,9 +627,11 @@ export default function TimeDifferencePage() {
               <h2>Convert a specific date and time</h2>
               <p>
                 {!date || !time
-                  ? `Choose a date and local time in ${fromCity.name} to see the time in ${toCity.name}.`
+                  ? `Choose a date and local time in ${sourceCityLabel} to see the time in ${destinationCityLabel}.`
                   : specificConversion?.status === "ambiguous"
                   ? "Choose the first or second occurrence above to complete the conversion."
+                  : hasSharedStateError
+                  ? "Correct the shared comparison details to complete the conversion."
                   : "Change the entered date or time to complete the conversion."}
               </p>
             </div>
@@ -532,7 +641,7 @@ export default function TimeDifferencePage() {
             className="time-difference-actions"
             style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: "12px", marginTop: "28px" }}
           >
-            <Link
+            {(mode === "current" || resolvedState.cityParametersValid) && <Link
               to={`/compare/${fromCity.slug}/${toCity.slug}`}
               style={{
                 display: "inline-block",
@@ -547,11 +656,12 @@ export default function TimeDifferencePage() {
               }}
             >
               {mode === "specific" ? "View Current Comparison Page" : "View Full Comparison Page"}
-            </Link>
+            </Link>}
             <button
               type="button"
               className="time-difference-copy-button"
               onClick={handleCopyComparisonLink}
+              disabled={mode === "specific" ? !comparisonUrl : undefined}
               style={{
                 padding: "13px 22px",
                 minHeight: "44px",
@@ -562,10 +672,11 @@ export default function TimeDifferencePage() {
                 color: "#67e8f9",
                 font: "inherit",
                 fontWeight: 700,
-                cursor: "pointer",
+                cursor: comparisonUrl ? "pointer" : "not-allowed",
+                opacity: comparisonUrl ? 1 : 0.55,
               }}
             >
-              {copyFeedback.message || (mode === "specific" ? "Copy city-pair link" : "Copy comparison link")}
+              {copyFeedback.message || "Copy comparison link"}
             </button>
           </div>
           <span className="sr-only" role="status" aria-atomic="true">
