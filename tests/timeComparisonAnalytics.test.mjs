@@ -79,6 +79,7 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
   let now = new Date("2026-09-07T12:00:00Z");
   const context = vm.createContext({
     ...dateTime,
+    React: { Fragment: "Fragment" },
     URLSearchParams,
     navigator,
     window: {
@@ -91,6 +92,7 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
       clearTimeout(id) { timers.delete(id); },
     },
     getTimeDifferenceMinutes: calculate,
+    convertLocalDateTime: options.convertLocalDateTime ?? dateTime.convertLocalDateTime,
     cities,
     siteConfig: { publicSiteName: "Test" },
     getSiteUrl: options.getSiteUrl ?? ((path) => `https://example.test${path}`),
@@ -128,6 +130,14 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
         pendingEffects.set(slot, { setup, deps });
       }
     },
+    useMemo(factory, deps) {
+      const slot = index++;
+      const previous = slots[slot];
+      if (!previous || deps.some((dep, i) => !Object.is(dep, previous.deps[i]))) {
+        slots[slot] = { value: factory(), deps };
+      }
+      return slots[slot].value;
+    },
     trackTimeComparisonCompleted(params) {
       pending.push(analytics.context.trackTimeComparisonCompleted(params));
     },
@@ -140,6 +150,12 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     if (!node || typeof node !== "object") return [];
     if (Array.isArray(node)) return node.flatMap((child) => nodes(type, child));
     return [...(node.type === type ? [node] : []), ...nodes(type, node.children)];
+  }
+  function nodeText(node) {
+    if (node === null || node === undefined || typeof node === "boolean") return "";
+    if (typeof node !== "object") return String(node);
+    if (Array.isArray(node)) return node.map(nodeText).join("");
+    return node.children.map(nodeText).join("");
   }
   function render() {
     if (renderedEntry !== history[historyIndex]) {
@@ -164,9 +180,9 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     render,
     navigator,
     clipboardWrites,
-    copy: () => nodes("button").find((node) => node.props.type === "button").props.onClick(),
-    copyButton: () => nodes("button").find((node) => node.props.type === "button"),
-    copyLabel: () => nodes("button").find((node) => node.props.type === "button").children.join(""),
+    copy: () => nodes("button").find((node) => node.props.className === "time-difference-copy-button").props.onClick(),
+    copyButton: () => nodes("button").find((node) => node.props.className === "time-difference-copy-button"),
+    copyLabel: () => nodes("button").find((node) => node.props.className === "time-difference-copy-button").children.join(""),
     status: () => nodes("span").find((node) => node.props.role === "status"),
     timerCount: () => timers.size,
     advance(milliseconds) {
@@ -191,7 +207,27 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     },
     tick() { now = new Date(now.getTime() + 1000); render(); },
     select(field, value) { nodes("select")[field].props.onChange({ target: { value } }); },
-    swap() { nodes("button")[0].props.onClick(); },
+    swap() { nodes("button").find((node) => node.props.className === "time-difference-swap-button").props.onClick(); },
+    setMode(value) {
+      const label = value === "specific" ? "Specific date & time" : "Current time";
+      nodes("button").find((node) => nodeText(node) === label).props.onClick();
+      render();
+    },
+    mode: () => nodes("button")
+      .filter((node) => node.props["aria-pressed"] === true)
+      .map(nodeText)[0],
+    setInput(type, value) {
+      nodes("input").find((node) => node.props.type === type).props.onChange({ target: { value } });
+      render();
+    },
+    input: (type) => nodes("input").find((node) => node.props.type === type),
+    chooseOccurrence(value) {
+      nodes("input").find((node) => node.props.type === "radio" && node.props.value === value).props.onChange();
+      render();
+    },
+    radios: () => nodes("input").filter((node) => node.props.type === "radio"),
+    labels: () => nodes("label"),
+    text: () => nodeText(tree),
     pair: () => nodes("select").map((node) => node.props.value),
     links: () => nodes("Link"),
     structuredData: () => nodes("StructuredData")[0].props.data,
@@ -218,6 +254,294 @@ async function readyAnalytics() {
   await loading;
   return analytics;
 }
+
+test("specific-date mode is opt-in, retains values, waits for complete input and keeps copy city-pair-only", async () => {
+  const analytics = await readyAnalytics();
+  let conversions = 0;
+  const disambiguations = [];
+  const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {}, {
+    convertLocalDateTime(input) {
+      conversions += 1;
+      disambiguations.push(input.disambiguation);
+      return dateTime.convertLocalDateTime(input);
+    },
+  });
+
+  assert.equal(page.mode(), "Current time");
+  assert.equal(page.input("date"), undefined);
+  assert.equal(conversions, 0);
+
+  page.setMode("specific");
+  assert.equal(page.mode(), "Specific date & time");
+  assert.equal(page.copyLabel(), "Copy city-pair link");
+  assert.equal(conversions, 0);
+  page.setInput("date", "2020-01-15");
+  assert.equal(conversions, 0);
+  page.setInput("time", "09:00");
+  assert.equal(conversions, 1);
+
+  page.setMode("current");
+  assert.equal(page.copyLabel(), "Copy comparison link");
+  page.setMode("specific");
+  assert.equal(page.input("date").props.value, "2020-01-15");
+  assert.equal(page.input("time").props.value, "09:00");
+  assert.equal(analytics.events().length, 0);
+
+  const labels = page.labels();
+  assert.equal(labels.find((label) => label.props.htmlFor === "time-difference-from-city") !== undefined, true);
+  assert.equal(labels.find((label) => label.props.htmlFor === "time-difference-to-city") !== undefined, true);
+});
+
+test("specific conversion uses the selected instant and renders complete same-, next- and previous-day output", async () => {
+  const analytics = await readyAnalytics();
+  const sameDay = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  });
+  sameDay.setMode("specific");
+  sameDay.setInput("date", "2027-03-15");
+  sameDay.setInput("time", "09:00");
+  assert.match(sameDay.text(), /London is ahead of Toronto at this time/);
+  assert.match(sameDay.text(), /4h 0m/);
+  assert.match(sameDay.text(), /Monday, March 15, 2027/);
+  assert.match(sameDay.text(), /9:00 AM/);
+  assert.match(sameDay.text(), /1:00 PM/);
+  assert.match(sameDay.text(), /Same day/);
+
+  const nextDay = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=tokyo",
+  });
+  nextDay.setMode("specific");
+  nextDay.setInput("date", "2027-12-31");
+  nextDay.setInput("time", "23:30");
+  assert.match(nextDay.text(), /Friday, December 31, 2027/);
+  assert.match(nextDay.text(), /Saturday, January 1, 2028/);
+  assert.match(nextDay.text(), /Next day/);
+
+  const previousDay = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?from=tokyo&to=toronto",
+  });
+  previousDay.setMode("specific");
+  previousDay.setInput("date", "2027-01-15");
+  previousDay.setInput("time", "00:15");
+  assert.match(previousDay.text(), /Thursday, January 14, 2027/);
+  assert.match(previousDay.text(), /Previous day/);
+});
+
+test("nonexistent local time remains entered, is accessible and has no destination conversion", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  });
+  page.setMode("specific");
+  page.setInput("date", "2027-03-14");
+  page.setInput("time", "02:30");
+
+  assert.equal(page.input("time").props.value, "02:30");
+  assert.equal(page.input("time").props["aria-invalid"], true);
+  assert.equal(page.input("time").props["aria-describedby"], "specific-time-error");
+  assert.match(page.text(), /This time doesn't occur in Toronto/);
+  assert.match(page.text(), /clocks move forward/);
+  assert.doesNotMatch(page.text(), /London is ahead of Toronto at this time/);
+
+  page.setInput("time", "03:30");
+  assert.equal(page.input("time").props["aria-invalid"], undefined);
+  assert.doesNotMatch(page.text(), /doesn't occur/);
+  assert.match(page.text(), /London is ahead of Toronto at this time/);
+});
+
+test("ambiguous local time offers exactly two occurrences and resets the choice on relevant changes", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  });
+  page.setMode("specific");
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+
+  assert.match(page.text(), /This local time happens twice in Toronto/);
+  assert.equal(page.radios().length, 2);
+  assert.deepEqual(page.radios().map((radio) => radio.props.value), ["earlier", "later"]);
+  assert.match(page.text(), /First occurrence/);
+  assert.match(page.text(), /Second occurrence/);
+
+  page.chooseOccurrence("earlier");
+  assert.equal(page.radios().find((radio) => radio.props.value === "earlier").props.checked, true);
+  assert.match(page.text(), /5:30 AM/);
+  page.chooseOccurrence("later");
+  assert.equal(page.radios().find((radio) => radio.props.value === "later").props.checked, true);
+  assert.match(page.text(), /6:30 AM/);
+
+  page.setInput("time", "01:31");
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+  page.chooseOccurrence("earlier");
+  page.setInput("date", "2027-11-08");
+  assert.equal(page.radios().length, 0);
+
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+  page.chooseOccurrence("later");
+  page.select(0, "montreal");
+  page.render();
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+});
+
+test("ambiguous occurrence is context-bound, uses one engine evaluation and radio changes do not track", async () => {
+  const analytics = await readyAnalytics();
+  let conversions = 0;
+  const disambiguations = [];
+  const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  }, {
+    convertLocalDateTime(input) {
+      conversions += 1;
+      disambiguations.push(input.disambiguation);
+      return dateTime.convertLocalDateTime(input);
+    },
+  });
+  page.setMode("specific");
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+  assert.equal(conversions, 1);
+  assert.deepEqual(disambiguations, ["reject"]);
+
+  page.chooseOccurrence("earlier");
+  assert.equal(conversions, 1);
+  assert.match(page.text(), /5:30 AM/);
+  page.chooseOccurrence("later");
+  assert.equal(conversions, 1);
+  assert.deepEqual(disambiguations, ["reject"]);
+  assert.match(page.text(), /6:30 AM/);
+  assert.equal(analytics.events().length, 0);
+
+  page.select(0, "new-york");
+  page.render();
+  assert.equal(conversions, 2);
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+
+  page.chooseOccurrence("later");
+  assert.equal(conversions, 2);
+  page.setInput("date", "2027-11-08");
+  assert.equal(conversions, 3);
+  page.setInput("date", "2027-11-07");
+  assert.equal(conversions, 4);
+  page.chooseOccurrence("later");
+  page.setInput("time", "01:31");
+  assert.equal(conversions, 5);
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+});
+
+test("browser forward navigation clears an ambiguous occurrence before resolving the new source context", async () => {
+  const analytics = await readyAnalytics();
+  let conversions = 0;
+  const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  }, {
+    convertLocalDateTime(input) {
+      conversions += 1;
+      return dateTime.convertLocalDateTime(input);
+    },
+  });
+  page.visit("?from=new-york&to=london");
+  page.back();
+  page.setMode("specific");
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+  page.chooseOccurrence("later");
+  assert.match(page.text(), /London is ahead of Toronto at this time/);
+  assert.equal(conversions, 1);
+
+  page.forward();
+  assert.equal(page.input("date").props.value, "2027-11-07");
+  assert.equal(page.input("time").props.value, "01:30");
+  assert.match(page.text(), /This local time happens twice in New York/);
+  assert.equal(page.radios().some((radio) => radio.props.checked), false);
+  assert.match(page.text(), /Choose the first or second occurrence above/);
+  assert.doesNotMatch(page.text(), /London is ahead of New York at this time/);
+  assert.equal(conversions, 2);
+  assert.equal(analytics.events().length, 0);
+
+  page.chooseOccurrence("earlier");
+  assert.match(page.text(), /London is ahead of New York at this time/);
+  assert.equal(conversions, 2);
+  assert.equal(analytics.events().length, 0);
+});
+
+test("specific swap preserves wall time, resets occurrence and keeps URL, analytics and copy semantics", async () => {
+  const analytics = await readyAnalytics();
+  const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
+    search: "?campaign=spring&from=toronto&to=london",
+    hash: "#calculator",
+    state: { returnTo: "/cities" },
+  });
+  page.setMode("specific");
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+  page.chooseOccurrence("later");
+  const eventsBeforeSwap = analytics.events().length;
+
+  page.swap();
+  page.render();
+  assert.deepEqual(page.pair(), ["london", "toronto"]);
+  assert.equal(page.input("date").props.value, "2027-11-07");
+  assert.equal(page.input("time").props.value, "01:30");
+  assert.equal(page.mode(), "Specific date & time");
+  assert.equal(page.radios().length, 0);
+  assert.equal(analytics.events().length, eventsBeforeSwap);
+  assert.equal(page.location().hash, "#calculator");
+  assert.deepEqual(page.location().state, { returnTo: "/cities" });
+  assert.equal(page.location().search.includes("campaign=spring"), true);
+  assert.equal(page.location().search.includes("date="), false);
+  assert.equal(page.location().search.includes("time="), false);
+  assert.equal(page.copyLabel(), "Copy city-pair link");
+  await page.copy();
+  assert.deepEqual(page.clipboardWrites, [
+    "https://example.test/time-difference?from=london&to=toronto",
+  ]);
+});
+
+test("specific conversion supports fractional offsets and identical source and destination zones", async () => {
+  const fractional = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=london&to=kathmandu",
+  });
+  fractional.setMode("specific");
+  fractional.setInput("date", "2027-01-15");
+  fractional.setInput("time", "09:00");
+  assert.match(fractional.text(), /5h 45m/);
+  assert.match(fractional.text(), /2:45 PM/);
+
+  const sameZone = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=montreal",
+  });
+  sameZone.setMode("specific");
+  sameZone.setInput("date", "2027-01-15");
+  sameZone.setInput("time", "09:00");
+  assert.match(sameZone.text(), /have the same UTC offset at this time/);
+  assert.match(sameZone.text(), /0h 0m/);
+  assert.match(sameZone.text(), /Same day/);
+
+  const sameCity = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=toronto",
+  });
+  sameCity.setMode("specific");
+  sameCity.setInput("date", "2027-01-15");
+  sameCity.setInput("time", "09:00");
+  assert.match(sameCity.text(), /Toronto and Toronto have the same UTC offset at this time/);
+  assert.match(sameCity.text(), /0h 0m/);
+  assert.match(sameCity.text(), /Same day/);
+});
+
+test("specific result labels multi-day relationships returned by the conversion engine", async () => {
+  for (const [dayDifference, label] of [[2, "2 days later"], [-2, "2 days earlier"]]) {
+    const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {}, {
+      convertLocalDateTime(input) {
+        const result = dateTime.convertLocalDateTime(input);
+        return result.status === "success" ? { ...result, dayDifference } : result;
+      },
+    });
+    page.setMode("specific");
+    page.setInput("date", "2027-01-15");
+    page.setInput("time", "09:00");
+    assert.match(page.text(), new RegExp(label));
+  }
+});
 
 test("default load, repeated renders, clock ticks and fresh mounts never count", async () => {
   const analytics = await readyAnalytics();

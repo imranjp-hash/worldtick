@@ -75,3 +75,214 @@ button:hover span:last-child {
   transform: translateX(4px);
   transition: transform 0.25s ease;
 }
+
+.time-difference-mode-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(430px, 100%);
+  margin-bottom: 32px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.time-difference-mode-toggle button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #c5cad5;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.time-difference-mode-toggle button.is-active {
+  background: #67e8f9;
+  color: #06101f;
+  box-shadow: 0 8px 24px rgba(103, 232, 249, 0.18);
+}
+
+.specific-date-time-fields label {
+  display: block;
+  margin-bottom: 10px;
+  color: #c5cad5;
+}
+
+.specific-date-time-fields input {
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  background: #0f1d33;
+  color: white;
+  color-scheme: dark;
+  font: inherit;
+}
+
+.specific-date-time-panel {
+  margin: 28px 0;
+  padding: clamp(22px, 5vw, 30px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+
+.specific-date-time-panel h2 {
+  margin: 0 0 8px;
+  font-size: clamp(1.25rem, 5vw, 1.6rem);
+}
+
+.specific-date-time-panel > p:not(.specific-date-time-error) {
+  margin: 0 0 22px;
+  color: #b8c1d1;
+}
+
+.specific-date-time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.specific-date-time-error {
+  margin: 18px 0 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(251, 146, 60, 0.55);
+  border-radius: 12px;
+  background: rgba(124, 45, 18, 0.3);
+  color: #ffedd5;
+  line-height: 1.5;
+}
+
+.specific-occurrence-options {
+  margin: 22px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.specific-occurrence-options legend {
+  margin-bottom: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.specific-occurrence-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  border-radius: 12px;
+  background: rgba(103, 232, 249, 0.05);
+}
+
+.specific-occurrence-choice input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+}
+
+.specific-occurrence-choice label {
+  cursor: pointer;
+}
+
+.specific-occurrence-choice span {
+  display: block;
+  margin-top: 4px;
+  color: #b8c1d1;
+  line-height: 1.4;
+}
+
+.specific-result-placeholder p {
+  color: #9ca7ba;
+}
+
+.specific-result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  margin-top: 28px;
+}
+
+.specific-result-grid article {
+  min-height: 210px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.specific-result-grid h3 {
+  margin: 6px 0 18px;
+  font-size: 1.4rem;
+}
+
+.specific-result-grid article > strong {
+  display: block;
+  margin-top: 12px;
+  color: #67e8f9;
+  font-size: 1.8rem;
+}
+
+.specific-result-label {
+  margin: 0;
+  color: #9ca7ba;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.specific-result-arrow {
+  color: #67e8f9;
+  font-size: 1.6rem;
+}
+
+.specific-day-relation {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 5px 10px;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  border-radius: 999px;
+  color: #d8fbff;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.time-difference-page :is(button, select, input, a):focus-visible {
+  outline: 3px solid #f8fafc;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .specific-date-time-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .time-difference-mode-toggle {
+    width: 100%;
+  }
+
+  .specific-result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .specific-result-grid article {
+    min-height: 0;
+  }
+
+  .specific-result-arrow {
+    transform: rotate(90deg);
+  }
+
+  .time-difference-actions > * {
+    width: 100%;
+  }
+}
