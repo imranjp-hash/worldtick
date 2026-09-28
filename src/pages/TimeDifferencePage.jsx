@@ -7,6 +7,7 @@ import {
   formatDateInZone,
   formatTimeInZone,
   getTimeDifferenceMinutes,
+  getTimeZoneDisplay,
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
@@ -315,6 +316,12 @@ export default function TimeDifferencePage() {
     : `${toCity.name} and ${fromCity.name} currently have the same UTC offset`;
   const fromCityTime = formatTimeInZone(fromCity.timezone, now, localTimeOptions);
   const toCityTime = formatTimeInZone(toCity.timezone, now, localTimeOptions);
+  const fromCityTimeZone = mode === "current"
+    ? getTimeZoneDisplay(fromCity.timezone, now)
+    : null;
+  const toCityTimeZone = mode === "current"
+    ? getTimeZoneDisplay(toCity.timezone, now)
+    : null;
 
   const specificConversion = resolvedState.conversion;
 
@@ -324,6 +331,12 @@ export default function TimeDifferencePage() {
   const successfulConversion = resolvedState.selectedConversion;
   const selectedInstant = successfulConversion
     ? new Date(successfulConversion.epochMilliseconds)
+    : null;
+  const specificFromTimeZone = selectedInstant
+    ? getTimeZoneDisplay(fromCity.timezone, selectedInstant)
+    : null;
+  const specificToTimeZone = selectedInstant
+    ? getTimeZoneDisplay(toCity.timezone, selectedInstant)
     : null;
   const specificDifference = selectedInstant
     ? getTimeDifferenceMinutes(fromCity.timezone, toCity.timezone, selectedInstant)
@@ -542,9 +555,16 @@ export default function TimeDifferencePage() {
                   This local time happens twice in {fromCity.name} because the clocks
                   change. Which one do you mean?
                 </legend>
-                {ambiguousConversion.candidates.map((candidate, index) => {
+                {ambiguousConversion.candidates.map((candidate) => {
                   const candidateInstant = new Date(candidate.epochMilliseconds);
+                  const candidateTimeZone = getTimeZoneDisplay(
+                    fromCity.timezone,
+                    candidateInstant,
+                  );
                   const value = candidate.interpretation;
+                  const occurrenceCaption = value === "earlier"
+                    ? "First occurrence"
+                    : "Second occurrence";
                   const choiceId = `specific-occurrence-${value}`;
                   return (
                     <div key={value} className="specific-occurrence-choice">
@@ -557,7 +577,10 @@ export default function TimeDifferencePage() {
                         onChange={() => handleOccurrenceChange(value)}
                       />
                       <label htmlFor={choiceId}>
-                        <strong>{index === 0 ? "First occurrence" : "Second occurrence"}</strong>
+                        <strong>
+                          {occurrenceCaption}
+                          {" — "}{candidateTimeZone.label}
+                        </strong>
                         <span>
                           {formatDateInZone(toCity.timezone, candidateInstant, fullDateOptions)} at{" "}
                           {formatTimeInZone(toCity.timezone, candidateInstant, localTimeOptions)} in{" "}
@@ -593,8 +616,14 @@ export default function TimeDifferencePage() {
               </p>
               <p style={{ color: "#9ca7ba" }}>{fromCity.name} → {toCity.name}</p>
               <div style={{ marginTop: "24px", color: "#cfd8e3", fontSize: "1.05rem", lineHeight: "1.9" }}>
-                <div><strong>{fromCity.name}:</strong> {fromCityTime}</div>
-                <div><strong>{toCity.name}:</strong> {toCityTime}</div>
+                <div>
+                  <strong>{fromCity.name}:</strong> {fromCityTime}
+                  <div className="time-zone-clarity">{fromCityTimeZone.label}</div>
+                </div>
+                <div>
+                  <strong>{toCity.name}:</strong> {toCityTime}
+                  <div className="time-zone-clarity">{toCityTimeZone.label}</div>
+                </div>
               </div>
             </>
           ) : successfulConversion && selectedInstant ? (
@@ -609,6 +638,7 @@ export default function TimeDifferencePage() {
                   <h3>{fromCity.name}</h3>
                   <p>{formatDateInZone(fromCity.timezone, selectedInstant, fullDateOptions)}</p>
                   <strong>{formatTimeInZone(fromCity.timezone, selectedInstant, localTimeOptions)}</strong>
+                  <p className="time-zone-clarity">{specificFromTimeZone.label}</p>
                 </article>
                 <span className="specific-result-arrow" aria-hidden="true">→</span>
                 <article>
@@ -616,6 +646,7 @@ export default function TimeDifferencePage() {
                   <h3>{toCity.name}</h3>
                   <p>{formatDateInZone(toCity.timezone, selectedInstant, fullDateOptions)}</p>
                   <strong>{formatTimeInZone(toCity.timezone, selectedInstant, localTimeOptions)}</strong>
+                  <p className="time-zone-clarity">{specificToTimeZone.label}</p>
                   <span className="specific-day-relation">
                     {describeDayDifference(successfulConversion.dayDifference)}
                   </span>

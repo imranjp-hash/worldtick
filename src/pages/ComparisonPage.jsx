@@ -3,6 +3,7 @@ import { cities } from "../data/cities";
 import {
   formatTimeInZone,
   getTimeDifferenceMinutes,
+  getTimeZoneDisplay,
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
@@ -43,6 +44,8 @@ export default function ComparisonPage() {
     second: undefined,
     hour12: true,
   });
+  const timeZoneA = getTimeZoneDisplay(cityA.timezone, now);
+  const timeZoneB = getTimeZoneDisplay(cityB.timezone, now);
 
   const differenceMinutes = getTimeDifferenceMinutes(
     cityA.timezone,
@@ -85,12 +88,14 @@ export default function ComparisonPage() {
             <p style={styles.cityName}>{cityA.name}</p>
             <p style={styles.country}>{cityA.country}</p>
             <p style={styles.time}>{timeA}</p>
+            <p className="time-zone-clarity">{timeZoneA.label}</p>
           </div>
 
           <div style={styles.timeBox}>
             <p style={styles.cityName}>{cityB.name}</p>
             <p style={styles.country}>{cityB.country}</p>
             <p style={styles.time}>{timeB}</p>
+            <p className="time-zone-clarity">{timeZoneB.label}</p>
           </div>
         </div>
 

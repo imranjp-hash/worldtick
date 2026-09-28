@@ -6,7 +6,9 @@ import {
   convertLocalDateTime,
   formatDateInZone,
   formatTimeInZone,
+  formatUtcOffset,
   getTimeDifferenceMinutes,
+  getTimeZoneDisplay,
   getTimeZoneOffsetMinutes,
 } from "../src/utils/dateTime.js";
 
@@ -19,6 +21,105 @@ const baseInput = Object.freeze({
   destinationTimeZone: "Europe/London",
 });
 const convert = (overrides = {}) => convertLocalDateTime({ ...baseInput, ...overrides });
+
+test("UTC offset presentation covers zero, positive, negative and fractional offsets", () => {
+  assert.equal(formatUtcOffset(0), "UTC+0");
+  assert.equal(formatUtcOffset(60), "UTC+1");
+  assert.equal(formatUtcOffset(-240), "UTC−4");
+  assert.equal(formatUtcOffset(-300), "UTC−5");
+  assert.equal(formatUtcOffset(330), "UTC+5:30");
+  assert.equal(formatUtcOffset(345), "UTC+5:45");
+  assert.equal(formatUtcOffset(630), "UTC+10:30");
+  assert.equal(formatUtcOffset(1), "UTC+0:01");
+  assert.equal(formatUtcOffset(-1), "UTC−0:01");
+  assert.equal(formatUtcOffset(20), "UTC+0:20");
+  assert.equal(formatUtcOffset(-345), "UTC−5:45");
+  assert.equal(formatUtcOffset(-1).codePointAt(3), 0x2212);
+});
+
+test("time-zone presentation requires an explicit instant", () => {
+  assert.throws(
+    () => getTimeZoneDisplay("America/Toronto"),
+    /requires an explicit instant/,
+  );
+});
+
+test("numeric long-name fallbacks do not duplicate the normalized UTC offset", () => {
+  const OriginalDateTimeFormat = Intl.DateTimeFormat;
+  Intl.DateTimeFormat = function DateTimeFormat(locale, options) {
+    if (options?.timeZoneName === "long") {
+      return { formatToParts: () => [{ type: "timeZoneName", value: "GMT+5:45" }] };
+    }
+    return new OriginalDateTimeFormat(locale, options);
+  };
+
+  try {
+    assert.deepEqual(getTimeZoneDisplay("Asia/Kathmandu", new Date("2027-01-15T12:00:00Z")), {
+      name: "GMT+5:45",
+      offsetMinutes: 345,
+      offsetLabel: "UTC+5:45",
+      label: "UTC+5:45",
+    });
+  } finally {
+    Intl.DateTimeFormat = OriginalDateTimeFormat;
+  }
+});
+
+test("long specific names and offsets follow the exact instant", () => {
+  const winter = new Date("2027-01-15T12:00:00Z");
+  const march = new Date("2027-03-15T12:00:00Z");
+  const summer = new Date("2027-07-15T12:00:00Z");
+
+  assert.deepEqual(getTimeZoneDisplay("America/Toronto", winter), {
+    name: "Eastern Standard Time",
+    offsetMinutes: -300,
+    offsetLabel: "UTC−5",
+    label: "Eastern Standard Time · UTC−5",
+  });
+  assert.deepEqual(getTimeZoneDisplay("America/Toronto", summer), {
+    name: "Eastern Daylight Time",
+    offsetMinutes: -240,
+    offsetLabel: "UTC−4",
+    label: "Eastern Daylight Time · UTC−4",
+  });
+  assert.deepEqual(getTimeZoneDisplay("Europe/London", winter), {
+    name: "Greenwich Mean Time",
+    offsetMinutes: 0,
+    offsetLabel: "UTC+0",
+    label: "Greenwich Mean Time · UTC+0",
+  });
+  assert.deepEqual(getTimeZoneDisplay("Europe/London", summer), {
+    name: "British Summer Time",
+    offsetMinutes: 60,
+    offsetLabel: "UTC+1",
+    label: "British Summer Time · UTC+1",
+  });
+  assert.equal(getTimeZoneDisplay("America/Toronto", march).offsetLabel, "UTC−4");
+  assert.equal(getTimeZoneDisplay("Europe/London", march).offsetLabel, "UTC+0");
+});
+
+test("fractional and southern-hemisphere zones retain their exact offsets", () => {
+  const january = new Date("2027-01-15T12:00:00Z");
+  const july = new Date("2027-07-15T12:00:00Z");
+
+  assert.equal(getTimeZoneDisplay("Asia/Kathmandu", january).offsetLabel, "UTC+5:45");
+  assert.equal(getTimeZoneDisplay("Asia/Kolkata", january).offsetLabel, "UTC+5:30");
+  assert.equal(getTimeZoneDisplay("Australia/Adelaide", january).offsetLabel, "UTC+10:30");
+  assert.equal(getTimeZoneDisplay("Australia/Adelaide", july).offsetLabel, "UTC+9:30");
+});
+
+test("Toronto repeated-hour candidates have distinct specific presentations", () => {
+  const result = convert(overlapInput);
+  const displays = result.candidates.map((candidate) => getTimeZoneDisplay(
+    candidate.source.timeZone,
+    new Date(candidate.epochMilliseconds),
+  ));
+
+  assert.deepEqual(displays.map(({ label }) => label), [
+    "Eastern Daylight Time · UTC−4",
+    "Eastern Standard Time · UTC−5",
+  ]);
+});
 
 test("Toronto to London in winter returns the complete JSON-safe success contract", () => {
   const result = convertLocalDateTime(baseInput);

@@ -8,6 +8,7 @@ import {
   formatDateInZone,
   formatTimeInZone,
   getTimeDifferenceMinutes,
+  getTimeZoneDisplay,
   splitTimeDifference,
 } from "../utils/dateTime";
 import useNow from "../hooks/useNow";
@@ -48,6 +49,7 @@ export default function CityPage() {
   }
 
   const eligibleCountry = getCountryBySlug(countrySlug(cityData.country));
+  const timeZoneDisplay = getTimeZoneDisplay(cityData.timezone, now);
   const cityUrl = getSiteUrl(`/city/${cityData.slug}`);
   const cityStructuredData = {
     "@context": "https://schema.org",
@@ -184,13 +186,14 @@ export default function CityPage() {
           </div>
 
           <div
-          style={{
-            marginTop: "20px",
-            color: "#6f7b91",
-            overflowWrap: "anywhere",
-          }}
-        >
-            {cityData.timezone}
+            className="time-zone-clarity"
+            style={{
+              marginTop: "20px",
+              color: "#6f7b91",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {timeZoneDisplay.label}
           </div>
         </div>
         <div

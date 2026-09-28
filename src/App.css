@@ -199,6 +199,14 @@ button:hover span:last-child {
   line-height: 1.4;
 }
 
+.time-zone-clarity {
+  margin-top: 4px;
+  color: #9ca7ba;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .specific-result-placeholder p {
   color: #9ca7ba;
 }

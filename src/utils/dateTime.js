@@ -48,6 +48,46 @@ export function getTimeZoneOffsetMinutes(timeZone, date = new Date()) {
   return sign * (Number(match[2]) * 60 + Number(match[3] || 0));
 }
 
+export function formatUtcOffset(offsetMinutes) {
+  if (!Number.isInteger(offsetMinutes)) {
+    throw new TypeError("Expected an integer UTC offset in minutes.");
+  }
+
+  const absoluteMinutes = Math.abs(offsetMinutes);
+  const hours = Math.floor(absoluteMinutes / 60);
+  const minutes = absoluteMinutes % 60;
+  const sign = offsetMinutes < 0 ? "−" : "+";
+
+  return `UTC${sign}${hours}${minutes ? `:${String(minutes).padStart(2, "0")}` : ""}`;
+}
+
+export function getTimeZoneDisplay(timeZone, instant, locale = "en-US") {
+  if (instant === undefined) {
+    throw new TypeError("getTimeZoneDisplay requires an explicit instant.");
+  }
+
+  const parts = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    timeZoneName: "long",
+  }).formatToParts(instant);
+  const name = parts.find((part) => part.type === "timeZoneName")?.value;
+
+  if (!name) {
+    throw new RangeError(`Unsupported time zone display name: ${timeZone}`);
+  }
+
+  const offsetMinutes = getTimeZoneOffsetMinutes(timeZone, instant);
+  const offsetLabel = formatUtcOffset(offsetMinutes);
+  const numericNameFallback = /^(?:GMT|UTC)(?:[+−-]\d{1,2}(?::\d{2})?)?$/i.test(name);
+
+  return {
+    name,
+    offsetMinutes,
+    offsetLabel,
+    label: numericNameFallback ? offsetLabel : `${name} · ${offsetLabel}`,
+  };
+}
+
 export function getTimeDifferenceMinutes(fromTimeZone, toTimeZone, date = new Date()) {
   return (
     getTimeZoneOffsetMinutes(toTimeZone, date) -

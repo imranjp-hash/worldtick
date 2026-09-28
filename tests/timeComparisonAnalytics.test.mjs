@@ -93,6 +93,7 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
       clearTimeout(id) { timers.delete(id); },
     },
     getTimeDifferenceMinutes: calculate,
+    getTimeZoneDisplay: options.getTimeZoneDisplay ?? dateTime.getTimeZoneDisplay,
     convertLocalDateTime: options.convertLocalDateTime ?? dateTime.convertLocalDateTime,
     ...timeComparisonUrl,
     cities,
@@ -257,6 +258,26 @@ async function readyAnalytics() {
   return analytics;
 }
 
+test("current mode derives timezone clarity from the supplied now instant", async () => {
+  const presentationInstants = [];
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  }, {
+    getTimeZoneDisplay(timeZone, instant) {
+      presentationInstants.push(instant.getTime());
+      return dateTime.getTimeZoneDisplay(timeZone, instant);
+    },
+  });
+
+  assert.deepEqual(presentationInstants, [
+    Date.parse("2026-09-07T12:00:00Z"),
+    Date.parse("2026-09-07T12:00:00Z"),
+  ]);
+  assert.match(page.text(), /Eastern Daylight Time · UTC−4/);
+  assert.match(page.text(), /British Summer Time · UTC\+1/);
+  assert.doesNotMatch(page.text(), /America\/Toronto|Europe\/London/);
+});
+
 test("specific-date mode is opt-in, retains values, waits for complete input and copies full state", async () => {
   const analytics = await readyAnalytics();
   let conversions = 0;
@@ -298,17 +319,32 @@ test("specific-date mode is opt-in, retains values, waits for complete input and
 
 test("specific conversion uses the selected instant and renders complete same-, next- and previous-day output", async () => {
   const analytics = await readyAnalytics();
+  const presentationInstants = [];
   const sameDay = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
     search: "?from=toronto&to=london",
+  }, {
+    getTimeZoneDisplay(timeZone, instant) {
+      presentationInstants.push(instant.getTime());
+      return dateTime.getTimeZoneDisplay(timeZone, instant);
+    },
   });
   sameDay.setMode("specific");
+  presentationInstants.length = 0;
   sameDay.setInput("date", "2027-03-15");
   sameDay.setInput("time", "09:00");
+  assert.deepEqual(presentationInstants.slice(-2), [
+    Date.parse("2027-03-15T13:00:00Z"),
+    Date.parse("2027-03-15T13:00:00Z"),
+  ]);
+  assert.equal(presentationInstants.includes(Date.parse("2026-09-07T12:00:00Z")), false);
   assert.match(sameDay.text(), /London is ahead of Toronto at this time/);
   assert.match(sameDay.text(), /4h 0m/);
   assert.match(sameDay.text(), /Monday, March 15, 2027/);
   assert.match(sameDay.text(), /9:00 AM/);
   assert.match(sameDay.text(), /1:00 PM/);
+  assert.match(sameDay.text(), /Eastern Daylight Time · UTC−4/);
+  assert.match(sameDay.text(), /Greenwich Mean Time · UTC\+0/);
+  assert.doesNotMatch(sameDay.text(), /Eastern Standard Time · UTC−5/);
   assert.match(sameDay.text(), /Same day/);
 
   const nextDay = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
@@ -342,6 +378,8 @@ test("ordinary shared specific URLs hydrate exactly without analytics or initial
   assert.equal(page.input("date").props.value, "2027-01-15");
   assert.equal(page.input("time").props.value, "09:00");
   assert.match(page.text(), /London is ahead of Toronto at this time/);
+  assert.match(page.text(), /Eastern Standard Time · UTC−5/);
+  assert.match(page.text(), /Greenwich Mean Time · UTC\+0/);
   assert.equal(page.copyButton().props.disabled, false);
   assert.equal(page.location().search, search);
   assert.equal(page.location().hash, "#calculator");
@@ -352,13 +390,17 @@ test("ordinary shared specific URLs hydrate exactly without analytics or initial
 });
 
 test("shared ambiguous URLs restore either occurrence by interpretation", async () => {
-  for (const [occurrence, destinationTime] of [["earlier", "5:30 AM"], ["later", "6:30 AM"]]) {
+  for (const [occurrence, destinationTime, sourceTimeZone] of [
+    ["earlier", "5:30 AM", "Eastern Daylight Time · UTC−4"],
+    ["later", "6:30 AM", "Eastern Standard Time · UTC−5"],
+  ]) {
     const analytics = await readyAnalytics();
     const page = pageHarness(analytics, dateTime.getTimeDifferenceMinutes, {
       search: `?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=${occurrence}`,
     });
     assert.equal(page.radios().find((radio) => radio.props.value === occurrence).props.checked, true);
     assert.match(page.text(), new RegExp(destinationTime));
+    assert.match(page.text(), new RegExp(sourceTimeZone));
     assert.equal(page.copyButton().props.disabled, false);
     assert.equal(analytics.events().length, 0);
     assert.equal(analytics.copyEvents().length, 0);
@@ -572,6 +614,8 @@ test("nonexistent local time remains entered, is accessible and has no destinati
   assert.match(page.text(), /This time doesn't occur in Toronto/);
   assert.match(page.text(), /clocks move forward/);
   assert.doesNotMatch(page.text(), /London is ahead of Toronto at this time/);
+  assert.doesNotMatch(page.text(), /Eastern (?:Standard|Daylight) Time · UTC/);
+  assert.doesNotMatch(page.text(), /Greenwich Mean Time · UTC/);
 
   page.setInput("time", "03:30");
   assert.equal(page.input("time").props["aria-invalid"], undefined);
@@ -592,6 +636,8 @@ test("ambiguous local time offers exactly two occurrences and resets the choice 
   assert.deepEqual(page.radios().map((radio) => radio.props.value), ["earlier", "later"]);
   assert.match(page.text(), /First occurrence/);
   assert.match(page.text(), /Second occurrence/);
+  assert.match(page.text(), /First occurrence — Eastern Daylight Time · UTC−4/);
+  assert.match(page.text(), /Second occurrence — Eastern Standard Time · UTC−5/);
 
   page.chooseOccurrence("earlier");
   assert.equal(page.radios().find((radio) => radio.props.value === "earlier").props.checked, true);
@@ -612,6 +658,26 @@ test("ambiguous local time offers exactly two occurrences and resets the choice 
   page.select(0, "montreal");
   page.render();
   assert.equal(page.radios().some((radio) => radio.props.checked), false);
+});
+
+test("ambiguous occurrence captions follow interpretation when candidates are reversed", async () => {
+  const page = pageHarness(await readyAnalytics(), dateTime.getTimeDifferenceMinutes, {
+    search: "?from=toronto&to=london",
+  }, {
+    convertLocalDateTime(input) {
+      const result = dateTime.convertLocalDateTime(input);
+      return result.status === "ambiguous"
+        ? { ...result, candidates: [...result.candidates].reverse() }
+        : result;
+    },
+  });
+  page.setMode("specific");
+  page.setInput("date", "2027-11-07");
+  page.setInput("time", "01:30");
+
+  assert.deepEqual(page.radios().map((radio) => radio.props.value), ["later", "earlier"]);
+  assert.match(page.text(), /Second occurrence — Eastern Standard Time · UTC−5/);
+  assert.match(page.text(), /First occurrence — Eastern Daylight Time · UTC−4/);
 });
 
 test("ambiguous occurrence is context-bound, uses one engine evaluation and radio changes do not track", async () => {

@@ -6,6 +6,7 @@ import {
   parseTimeComparisonSearch,
   recognizedParameters,
 } from "../src/utils/timeComparisonUrl.js";
+import { getTimeZoneDisplay } from "../src/utils/dateTime.js";
 
 const ordinary = "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00";
 const overlap = "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30";
@@ -200,6 +201,21 @@ test("canonical ordinary, earlier and later URLs round-trip to the same semantic
       occurrence: first.occurrence,
       epochMilliseconds: first.selectedConversion.epochMilliseconds,
     }, search);
+  }
+});
+
+test("canonical specific URLs restore identical timezone clarity", () => {
+  for (const search of [ordinary, `${overlap}&occurrence=earlier`, `${overlap}&occurrence=later`]) {
+    const first = parseTimeComparisonSearch(search);
+    const canonicalPath = buildCanonicalComparisonPath(first);
+    const second = parseTimeComparisonSearch(new URL(canonicalPath, "https://example.test").search);
+    const displays = (state) => {
+      const instant = new Date(state.selectedConversion.epochMilliseconds);
+      return [state.fromCity, state.toCity].map((city) =>
+        getTimeZoneDisplay(city.timezone, instant).label);
+    };
+
+    assert.deepEqual(displays(second), displays(first), search);
   }
 });
 
