@@ -1,4 +1,5 @@
 import TimeDifferencePage from "./pages/TimeDifferencePage";
+import MeetingPlannerPage from "./pages/MeetingPlannerPage";
 import ComparisonPage from "./pages/ComparisonPage";
 import CitiesPage from "./pages/CitiesPage";
 import HomePage from "./pages/HomePage";
@@ -123,6 +124,7 @@ useEffect(() => {
   path="/time-difference"
   element={<TimeDifferencePage />}
 />
+<Route path="/meeting-planner" element={<MeetingPlannerPage />} />
 <Route
   path="/compare/:fromCity/:toCity"
   element={<ComparisonPage />}

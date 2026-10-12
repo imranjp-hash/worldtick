@@ -26,6 +26,10 @@ const staticRoutes = Object.freeze({
     description:
       "Compare the current time difference between cities around the world.",
   },
+  "/meeting-planner": {
+    title: `Multi-City Meeting Planner | ${siteConfig.publicSiteName}`,
+    description: "Find 30-minute meeting times across 2–5 cities using preferred local hours and an explicit reference-city date.",
+  },
   "/about": {
     title: `About ${siteConfig.publicSiteName} | Global Time Made Simple`,
     description:

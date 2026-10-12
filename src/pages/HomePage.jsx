@@ -73,7 +73,10 @@ export default function HomePage({
     Instantly compare the time difference between any two cities.
   </p>
 
+  <div className="home-tool-actions">
   <button
+    type="button"
+    className="home-tool-button home-tool-button-primary"
     onClick={() => navigate("/time-difference")}
     style={{
       padding: "14px 24px",
@@ -89,6 +92,8 @@ export default function HomePage({
   >
     Open Time Difference Calculator
   </button>
+  <Link to="/meeting-planner" className="home-tool-button home-tool-button-secondary">Open Meeting Planner</Link>
+  </div>
 </section>
 
         <section style={styles.searchWrap}>

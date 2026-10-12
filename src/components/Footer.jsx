@@ -21,6 +21,7 @@ export default function Footer() {
           <Link style={styles.link} to="/cities">Browse Cities</Link>
           <Link style={styles.link} to="/countries">Browse Countries</Link>
           <Link style={styles.link} to="/time-difference">Time Difference</Link>
+          <Link style={styles.link} to="/meeting-planner">Meeting Planner</Link>
           <button type="button" style={styles.settingsButton} onClick={openSettings}>
             Cookie settings
           </button>
