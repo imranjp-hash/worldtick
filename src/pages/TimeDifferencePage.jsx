@@ -14,6 +14,13 @@ import useNow from "../hooks/useNow";
 import { getSiteUrl, siteConfig } from "../config/site";
 import { trackComparisonLinkCopied, trackTimeComparisonCompleted } from "../utils/analytics";
 import {
+  createCalendarEvent,
+  createCalendarFilename,
+  getCalendarExportState,
+  getCurrentEpochMilliseconds,
+} from "../utils/calendarEvent";
+import { downloadIcsFile, serializeCalendarEventToIcs } from "../utils/ics";
+import {
   buildCanonicalComparisonPath,
   buildInteractiveComparisonSearch,
   classifyTimeComparisonSearch,
@@ -82,6 +89,7 @@ export default function TimeDifferencePage() {
   const copyPending = useRef(false);
   const copyScope = useRef(null);
   const copyResetTimer = useRef(null);
+  const calendarExportSnapshot = useRef(null);
 
   useLayoutEffect(() => {
     if (mode === "specific") {
@@ -143,6 +151,38 @@ export default function TimeDifferencePage() {
       if (scope.active) setCopyFeedback({ url: copyIdentity, message: "" });
       copyResetTimer.current = null;
     }, 2000);
+  }
+
+  function handleDownloadCalendarEvent() {
+    const current = calendarExportSnapshot.current;
+    if (!current) return;
+
+    const generatedAtEpochMilliseconds = getCurrentEpochMilliseconds();
+    const currentEligibility = getCalendarExportState({
+      mode: current.mode,
+      selectedConversion: current.selectedConversion,
+      nowEpochMilliseconds: generatedAtEpochMilliseconds,
+    });
+    if (!currentEligibility.eligible || !current.comparisonUrl
+      || !current.sourceDisplay || !current.destinationDisplay) return;
+
+    const event = createCalendarEvent({
+      selectedConversion: current.selectedConversion,
+      sourceCity: current.sourceCity,
+      destinationCity: current.destinationCity,
+      sourceDisplay: current.sourceDisplay,
+      destinationDisplay: current.destinationDisplay,
+      occurrence: current.occurrence,
+      comparisonUrl: current.comparisonUrl,
+    });
+    const ics = serializeCalendarEventToIcs(event, { generatedAtEpochMilliseconds });
+    const filename = createCalendarFilename({
+      sourceCity: current.sourceCity,
+      destinationCity: current.destinationCity,
+      sourceDate: current.selectedConversion.source.date,
+    });
+
+    downloadIcsFile({ ics, filename });
   }
 
   function getActiveComparison() {
@@ -329,15 +369,37 @@ export default function TimeDifferencePage() {
     ? specificConversion
     : null;
   const successfulConversion = resolvedState.selectedConversion;
-  const selectedInstant = successfulConversion
-    ? new Date(successfulConversion.epochMilliseconds)
-    : null;
-  const specificFromTimeZone = selectedInstant
-    ? getTimeZoneDisplay(fromCity.timezone, selectedInstant)
-    : null;
-  const specificToTimeZone = selectedInstant
-    ? getTimeZoneDisplay(toCity.timezone, selectedInstant)
-    : null;
+  const selectedEpochMilliseconds = successfulConversion?.epochMilliseconds ?? null;
+  const selectedInstant = useMemo(
+    () => selectedEpochMilliseconds === null ? null : new Date(selectedEpochMilliseconds),
+    [selectedEpochMilliseconds],
+  );
+  const specificFromTimeZone = useMemo(
+    () => selectedInstant ? getTimeZoneDisplay(fromCity.timezone, selectedInstant) : null,
+    [fromCity.timezone, selectedInstant],
+  );
+  const specificToTimeZone = useMemo(
+    () => selectedInstant ? getTimeZoneDisplay(toCity.timezone, selectedInstant) : null,
+    [selectedInstant, toCity.timezone],
+  );
+  const specificSourceDisplay = useMemo(
+    () => selectedInstant ? {
+        date: formatDateInZone(fromCity.timezone, selectedInstant, fullDateOptions),
+        time: formatTimeInZone(fromCity.timezone, selectedInstant, localTimeOptions),
+        timeZoneLabel: specificFromTimeZone.label,
+      }
+    : null,
+    [fromCity.timezone, selectedInstant, specificFromTimeZone],
+  );
+  const specificDestinationDisplay = useMemo(
+    () => selectedInstant ? {
+        date: formatDateInZone(toCity.timezone, selectedInstant, fullDateOptions),
+        time: formatTimeInZone(toCity.timezone, selectedInstant, localTimeOptions),
+        timeZoneLabel: specificToTimeZone.label,
+      }
+    : null,
+    [selectedInstant, specificToTimeZone, toCity.timezone],
+  );
   const specificDifference = selectedInstant
     ? getTimeDifferenceMinutes(fromCity.timezone, toCity.timezone, selectedInstant)
     : null;
@@ -361,6 +423,34 @@ export default function TimeDifferencePage() {
   const sourceCityLabel = fromCityIdentityValid ? fromCity.name : "the source city";
   const destinationCityLabel = toCityIdentityValid ? toCity.name : "the destination city";
   const inputErrorId = "specific-time-error";
+  const calendarPastHelpId = "calendar-download-past-help";
+  const calendarExportState = getCalendarExportState({
+    mode,
+    selectedConversion: successfulConversion,
+    nowEpochMilliseconds: now.getTime(),
+  });
+
+  useLayoutEffect(() => {
+    calendarExportSnapshot.current = {
+      mode,
+      selectedConversion: successfulConversion,
+      sourceCity: fromCity,
+      destinationCity: toCity,
+      sourceDisplay: specificSourceDisplay,
+      destinationDisplay: specificDestinationDisplay,
+      occurrence: resolvedState.occurrence,
+      comparisonUrl,
+    };
+  }, [
+    comparisonUrl,
+    fromCity,
+    mode,
+    resolvedState.occurrence,
+    specificDestinationDisplay,
+    specificSourceDisplay,
+    successfulConversion,
+    toCity,
+  ]);
 
   return (
     <div
@@ -636,16 +726,16 @@ export default function TimeDifferencePage() {
                 <article>
                   <p className="specific-result-label">From</p>
                   <h3>{fromCity.name}</h3>
-                  <p>{formatDateInZone(fromCity.timezone, selectedInstant, fullDateOptions)}</p>
-                  <strong>{formatTimeInZone(fromCity.timezone, selectedInstant, localTimeOptions)}</strong>
+                  <p>{specificSourceDisplay.date}</p>
+                  <strong>{specificSourceDisplay.time}</strong>
                   <p className="time-zone-clarity">{specificFromTimeZone.label}</p>
                 </article>
                 <span className="specific-result-arrow" aria-hidden="true">→</span>
                 <article>
                   <p className="specific-result-label">To</p>
                   <h3>{toCity.name}</h3>
-                  <p>{formatDateInZone(toCity.timezone, selectedInstant, fullDateOptions)}</p>
-                  <strong>{formatTimeInZone(toCity.timezone, selectedInstant, localTimeOptions)}</strong>
+                  <p>{specificDestinationDisplay.date}</p>
+                  <strong>{specificDestinationDisplay.time}</strong>
                   <p className="time-zone-clarity">{specificToTimeZone.label}</p>
                   <span className="specific-day-relation">
                     {describeDayDifference(successfulConversion.dayDifference)}
@@ -709,7 +799,23 @@ export default function TimeDifferencePage() {
             >
               {copyFeedback.message || "Copy comparison link"}
             </button>
+            {mode === "specific" && (
+              <button
+                type="button"
+                className="time-difference-calendar-button"
+                onClick={handleDownloadCalendarEvent}
+                disabled={!calendarExportState.eligible}
+                aria-describedby={calendarExportState.reason === "past" ? calendarPastHelpId : undefined}
+              >
+                Download calendar event (.ics)
+              </button>
+            )}
           </div>
+          {mode === "specific" && calendarExportState.reason === "past" && (
+            <p id={calendarPastHelpId} className="calendar-download-help">
+              This time has already passed.
+            </p>
+          )}
           <span className="sr-only" role="status" aria-atomic="true">
             {copyFeedback.message}
           </span>

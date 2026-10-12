@@ -6,6 +6,8 @@ import { transformWithOxc } from "vite";
 import { cities } from "../src/data/cities.js";
 import * as dateTime from "../src/utils/dateTime.js";
 import * as timeComparisonUrl from "../src/utils/timeComparisonUrl.js";
+import * as calendarEvent from "../src/utils/calendarEvent.js";
+import * as ics from "../src/utils/ics.js";
 
 const analyticsSource = await readFile(new URL("../src/utils/analytics.js", import.meta.url), "utf8");
 const pageSource = await readFile(new URL("../src/pages/TimeDifferencePage.jsx", import.meta.url), "utf8");
@@ -61,6 +63,7 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
   const pendingEffects = new Map();
   const timers = new Map();
   const clipboardWrites = [];
+  const calendarDownloads = [];
   const navigator = options.navigator ?? {
     clipboard: { writeText: async (text) => { clipboardWrites.push(text); } },
   };
@@ -78,11 +81,20 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
   let elapsed = 0;
   let nextTimer = 0;
   let now = new Date("2026-09-07T12:00:00Z");
+  let systemNowEpochMilliseconds = options.systemNowEpochMilliseconds ?? Date.now();
+  const PageDate = options.systemNowEpochMilliseconds === undefined
+    ? Date
+    : class extends Date {
+        static now() { return systemNowEpochMilliseconds; }
+      };
   const context = vm.createContext({
     ...dateTime,
+    ...calendarEvent,
+    ...ics,
     React: { Fragment: "Fragment" },
     URLSearchParams,
     navigator,
+    Date: PageDate,
     window: {
       location: { origin: "http://localhost:5173" },
       setTimeout(callback, delay) {
@@ -95,6 +107,8 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     getTimeDifferenceMinutes: calculate,
     getTimeZoneDisplay: options.getTimeZoneDisplay ?? dateTime.getTimeZoneDisplay,
     convertLocalDateTime: options.convertLocalDateTime ?? dateTime.convertLocalDateTime,
+    getCurrentEpochMilliseconds: () => systemNowEpochMilliseconds,
+    downloadIcsFile: options.downloadIcsFile ?? ((payload) => calendarDownloads.push(payload)),
     ...timeComparisonUrl,
     cities,
     siteConfig: { publicSiteName: "Test" },
@@ -183,9 +197,19 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
     render,
     navigator,
     clipboardWrites,
+    calendarDownloads,
     copy: () => nodes("button").find((node) => node.props.className === "time-difference-copy-button").props.onClick(),
     copyButton: () => nodes("button").find((node) => node.props.className === "time-difference-copy-button"),
     copyLabel: () => nodes("button").find((node) => node.props.className === "time-difference-copy-button").children.join(""),
+    calendarButton: () => nodes("button").find(
+      (node) => node.props.className === "time-difference-calendar-button",
+    ),
+    calendarHandler: () => nodes("button").find(
+      (node) => node.props.className === "time-difference-calendar-button",
+    )?.props.onClick,
+    downloadCalendar: () => nodes("button").find(
+      (node) => node.props.className === "time-difference-calendar-button",
+    )?.props.onClick(),
     status: () => nodes("span").find((node) => node.props.role === "status"),
     timerCount: () => timers.size,
     advance(milliseconds) {
@@ -209,6 +233,8 @@ function pageHarness(analytics, calculate = dateTime.getTimeDifferenceMinutes, i
       mounted = false;
     },
     tick() { now = new Date(now.getTime() + 1000); render(); },
+    setNow(value) { now = new Date(value); render(); },
+    setSystemNow(value) { systemNowEpochMilliseconds = value; },
     select(field, value) { nodes("select")[field].props.onChange({ target: { value } }); },
     swap() { nodes("button").find((node) => node.props.className === "time-difference-swap-button").props.onClick(); },
     setMode(value) {
@@ -405,6 +431,204 @@ test("shared ambiguous URLs restore either occurrence by interpretation", async 
     assert.equal(analytics.events().length, 0);
     assert.equal(analytics.copyEvents().length, 0);
   }
+});
+
+test("calendar control is Specific-only, remains visible when unavailable and enables for a resolved future instant", async () => {
+  const page = pageHarness(await readyAnalytics(), undefined, {
+    search: "?from=toronto&to=london",
+  });
+  assert.equal(page.calendarButton(), undefined);
+
+  page.setMode("specific");
+  assert.equal(page.calendarButton().props.disabled, true);
+  assert.equal(page.calendarButton().props.type, "button");
+  assert.match(page.text(), /Download calendar event \(\.ics\)/);
+  page.setInput("date", "2027-03-27");
+  page.setInput("time", "09:00");
+  assert.equal(page.calendarButton().props.disabled, false);
+});
+
+test("shared ordinary, earlier and later URLs download the exact selected instant and canonical description", async () => {
+  const cases = [
+    [
+      "?from=toronto&to=london&mode=specific&date=2027-03-27&time=09%3A00&utm_source=shared",
+      "20270327T130000Z",
+      null,
+    ],
+    [
+      "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=earlier&utm_source=shared",
+      "20271107T053000Z",
+      "First occurrence",
+    ],
+    [
+      "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30&occurrence=later&utm_source=shared",
+      "20271107T063000Z",
+      "Second occurrence",
+    ],
+  ];
+
+  for (const [search, expectedStart, occurrenceLabel] of cases) {
+    const analytics = await readyAnalytics();
+    const callsBefore = analytics.calls();
+    const page = pageHarness(analytics, undefined, { search, hash: "#ignored" }, {
+      systemNowEpochMilliseconds: Date.UTC(2026, 0, 1),
+    });
+    assert.equal(page.calendarButton().props.disabled, false, search);
+    page.downloadCalendar();
+    assert.equal(page.calendarDownloads.length, 1, search);
+    const [{ ics: downloadedIcs, filename }] = page.calendarDownloads;
+    const logicalIcs = downloadedIcs.replace(/\r\n[ \t]/g, "");
+    assert.match(logicalIcs, new RegExp(`DTSTART:${expectedStart}\\r\\n`), search);
+    assert.match(logicalIcs, /DTEND:\d{8}T\d{6}Z\r\n/, search);
+    assert.match(logicalIcs, /Toronto: Saturday\\, March 27|Toronto: Sunday\\, November 7/, search);
+    assert.match(logicalIcs, /Eastern (?:Daylight|Standard) Time · UTC/, search);
+    assert.match(logicalIcs, /London:/, search);
+    assert.match(logicalIcs, /Comparison: https:\/\/example\.test\/time-difference\?from=toronto&to=london&mode=specific/, search);
+    assert.doesNotMatch(logicalIcs, /utm_source|#ignored/, search);
+    if (occurrenceLabel) assert.match(logicalIcs, new RegExp(occurrenceLabel), search);
+    assert.equal(filename.startsWith("youhora-toronto-london-2027-"), true);
+    assert.deepEqual(analytics.calls(), callsBefore);
+  }
+});
+
+test("unresolved, nonexistent, incomplete and invalid Specific states cannot download", async () => {
+  for (const search of [
+    "?from=toronto&to=london&mode=specific&date=2027-11-07&time=01%3A30",
+    "?from=toronto&to=london&mode=specific&date=2027-03-14&time=02%3A30",
+    "?from=toronto&to=london&mode=specific&date=2027-01-15",
+    "?from=toronto&to=london&mode=specific&date=2027-02-30&time=09%3A00",
+    "?from=unknown&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  ]) {
+    const page = pageHarness(await readyAnalytics(), undefined, { search }, {
+      systemNowEpochMilliseconds: Date.UTC(2026, 0, 1),
+    });
+    assert.equal(page.calendarButton().props.disabled, true, search);
+    page.downloadCalendar();
+    assert.equal(page.calendarDownloads.length, 0, search);
+  }
+});
+
+test("calendar eligibility is strict at the instant boundary and updates with the live page clock", async () => {
+  const start = Date.UTC(2027, 0, 15, 14);
+  const search = "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00";
+  const page = pageHarness(await readyAnalytics(), undefined, { search }, {
+    systemNowEpochMilliseconds: start - 1,
+  });
+
+  page.setNow(start - 1);
+  assert.equal(page.calendarButton().props.disabled, false);
+  page.setNow(start);
+  assert.equal(page.calendarButton().props.disabled, true);
+  assert.equal(page.calendarButton().props["aria-describedby"], "calendar-download-past-help");
+  assert.match(page.text(), /This time has already passed\./);
+
+  page.setNow(start - 1);
+  assert.equal(page.calendarButton().props.disabled, false);
+  page.tick();
+  assert.equal(page.calendarButton().props.disabled, true);
+});
+
+test("click-time Date.now recheck blocks a stale enabled calendar download", async () => {
+  const start = Date.UTC(2027, 0, 15, 14);
+  const page = pageHarness(await readyAnalytics(), undefined, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  }, { systemNowEpochMilliseconds: start - 1 });
+  page.setNow(start - 1);
+  assert.equal(page.calendarButton().props.disabled, false);
+
+  page.setSystemNow(start);
+  page.downloadCalendar();
+  assert.equal(page.calendarDownloads.length, 0);
+});
+
+test("a retained calendar handler exports the latest source conversion", async () => {
+  const page = pageHarness(await readyAnalytics(), undefined, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  }, { systemNowEpochMilliseconds: Date.UTC(2026, 0, 1) });
+  const oldHandler = page.calendarHandler();
+
+  page.select(0, "vancouver");
+  page.render();
+  oldHandler();
+
+  assert.equal(page.calendarDownloads.length, 1);
+  const [{ ics: downloadedIcs, filename }] = page.calendarDownloads;
+  const logicalIcs = downloadedIcs.replace(/\r\n[ \t]/g, "");
+  assert.match(logicalIcs, /DTSTART:20270115T170000Z\r\n/);
+  assert.match(logicalIcs, /Vancouver:/);
+  assert.doesNotMatch(logicalIcs, /SUMMARY:Toronto/);
+  assert.match(filename, /^youhora-vancouver-london-/);
+});
+
+test("a retained calendar handler exports the latest destination and wall-time edit", async () => {
+  const page = pageHarness(await readyAnalytics(), undefined, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  }, { systemNowEpochMilliseconds: Date.UTC(2026, 0, 1) });
+  const oldHandler = page.calendarHandler();
+
+  page.select(1, "tokyo");
+  page.render();
+  page.setInput("date", "2027-01-16");
+  page.setInput("time", "10:00");
+  oldHandler();
+
+  assert.equal(page.calendarDownloads.length, 1);
+  const [{ ics: downloadedIcs, filename }] = page.calendarDownloads;
+  const logicalIcs = downloadedIcs.replace(/\r\n[ \t]/g, "");
+  assert.match(logicalIcs, /DTSTART:20270116T150000Z\r\n/);
+  assert.match(logicalIcs, /SUMMARY:Toronto .* Tokyo meeting/);
+  assert.match(logicalIcs, /Comparison: .*to=tokyo.*date=2027-01-16.*time=10%3A00/);
+  assert.match(filename, /^youhora-toronto-tokyo-2027-01-16\.ics$/);
+});
+
+test("a retained calendar handler exports the latest swapped comparison", async () => {
+  const page = pageHarness(await readyAnalytics(), undefined, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  }, { systemNowEpochMilliseconds: Date.UTC(2026, 0, 1) });
+  const oldHandler = page.calendarHandler();
+
+  page.swap();
+  page.render();
+  oldHandler();
+
+  assert.equal(page.calendarDownloads.length, 1);
+  const [{ ics: downloadedIcs, filename }] = page.calendarDownloads;
+  const logicalIcs = downloadedIcs.replace(/\r\n[ \t]/g, "");
+  assert.match(logicalIcs, /DTSTART:20270115T090000Z\r\n/);
+  assert.match(logicalIcs, /SUMMARY:London .* Toronto meeting/);
+  assert.match(filename, /^youhora-london-toronto-/);
+});
+
+test("retained calendar handlers follow Back and Forward state", async () => {
+  const torontoSearch = "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00";
+  const vancouverSearch = "?from=vancouver&to=tokyo&mode=specific&date=2027-01-15&time=09%3A00";
+  const page = pageHarness(await readyAnalytics(), undefined, { search: torontoSearch }, {
+    systemNowEpochMilliseconds: Date.UTC(2026, 0, 1),
+  });
+  const torontoHandler = page.calendarHandler();
+
+  page.visit(vancouverSearch);
+  const vancouverHandler = page.calendarHandler();
+  page.back();
+  vancouverHandler();
+  page.forward();
+  torontoHandler();
+
+  assert.equal(page.calendarDownloads.length, 2);
+  const logicalDownloads = page.calendarDownloads.map(({ ics: value }) => value.replace(/\r\n[ \t]/g, ""));
+  assert.match(logicalDownloads[0], /DTSTART:20270115T140000Z\r\n/);
+  assert.match(logicalDownloads[0], /SUMMARY:Toronto .* London meeting/);
+  assert.match(logicalDownloads[1], /DTSTART:20270115T170000Z\r\n/);
+  assert.match(logicalDownloads[1], /SUMMARY:Vancouver .* Tokyo meeting/);
+});
+
+test("a formerly future shared URL is disabled once its selected instant is past", async () => {
+  const page = pageHarness(await readyAnalytics(), undefined, {
+    search: "?from=toronto&to=london&mode=specific&date=2027-01-15&time=09%3A00",
+  });
+  page.setNow(Date.UTC(2027, 0, 15, 14, 0, 1));
+  assert.equal(page.calendarButton().props.disabled, true);
+  assert.match(page.text(), /This time has already passed\./);
 });
 
 test("unresolved, invalid, incomplete and nonexistent shared state cannot copy a conversion", async () => {

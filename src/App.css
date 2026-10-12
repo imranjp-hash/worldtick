@@ -264,6 +264,30 @@ button:hover span:last-child {
   font-weight: 700;
 }
 
+.time-difference-calendar-button {
+  width: min(290px, 100%);
+  min-height: 44px;
+  padding: 13px 22px;
+  border: 1px solid rgba(103, 232, 249, 0.3);
+  border-radius: 14px;
+  background: rgba(103, 232, 249, 0.08);
+  color: #67e8f9;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.time-difference-calendar-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.calendar-download-help {
+  margin: 12px 0 0;
+  color: #b8c1d1;
+  font-size: 0.95rem;
+}
+
 .time-difference-page :is(button, select, input, a):focus-visible {
   outline: 3px solid #f8fafc;
   outline-offset: 3px;
