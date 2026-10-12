@@ -225,8 +225,22 @@ test("all candidates retain exact start/end and deterministic order without muta
   assert.deepEqual(input, base);
   first.candidates.forEach((candidate, index) => {
     assert.equal(candidate.endEpochMilliseconds - candidate.startEpochMilliseconds, MEETING_DURATION_MILLISECONDS);
+    assert.equal(candidate.startEpochMilliseconds % 1000, 0);
+    assert.equal(candidate.endEpochMilliseconds % 1000, 0);
     if (index) assert.equal(candidate.startEpochMilliseconds - first.candidates[index - 1].startEpochMilliseconds, MEETING_DURATION_MILLISECONDS);
   });
+});
+
+test("exceptional-midnight and supported-limit planner candidates retain ICS whole-second precision", () => {
+  for (const input of [...dayFixtures.map(dayInput), { ...base, referenceDate: MIN_PLANNER_DATE },
+    { ...base, referenceDate: MAX_PLANNER_DATE }, { ...base, citySlugs: ["kathmandu", "toronto"], referenceCitySlug: "kathmandu" }]) {
+    const result = generateMeetingPlan(input);
+    assert.equal(result.status, "success");
+    for (const candidate of result.candidates) {
+      assert.equal(candidate.startEpochMilliseconds % 1000, 0);
+      assert.equal(candidate.endEpochMilliseconds % 1000, 0);
+    }
+  }
 });
 
 test("invalid counts, duplicate/unknown cities and reference are explicit", () => {

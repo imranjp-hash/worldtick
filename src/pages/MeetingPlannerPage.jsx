@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { cities } from "../data/cities";
 import { generateMeetingPlan, MIN_PLANNER_DATE, MAX_PLANNER_DATE } from "../utils/meetingPlanner";
 import { formatDateInZone, formatTimeInZone, getTimeZoneDisplay } from "../utils/dateTime";
+import PlannerCalendarDownloadControl from "../components/PlannerCalendarDownloadControl";
 
 const dateOptions = { weekday: "short", year: "numeric", month: "short", day: "numeric" };
 const timeOptions = { hour: "numeric", minute: "2-digit", second: undefined, hour12: true };
@@ -26,7 +27,7 @@ function cityInterval(location, candidate) {
   return { start, end, startDate, endDate, startTime, endTime };
 }
 
-export default function MeetingPlannerPage() {
+function MeetingPlannerPage() {
   const [state, setState] = useState({
     citySlugs: ["toronto", "london"], referenceCitySlug: "toronto", referenceDate: "",
     preferredWindow: { start: "09:00", end: "17:00" }, selectedStartEpochMilliseconds: null,
@@ -216,9 +217,13 @@ export default function MeetingPlannerPage() {
               </article>;
             })}
           </div>
+          <PlannerCalendarDownloadControl selectedCandidate={selectedCandidate} planRevision={planRevision} />
         </section>}
         <p className="meeting-help"><Link to="/time-difference">Compare a specific time between two cities</Link></p>
       </div>
     </main>
   );
 }
+
+// App consumes the shared clock too. Its ticks must not reformat planner rows.
+export default memo(MeetingPlannerPage);

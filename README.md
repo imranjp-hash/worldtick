@@ -34,8 +34,36 @@ Historical date re-entry and second-offset archaeology
 are outside Phase 3A. Invalid or unsupported reference days return an explicit
 error. Calculations use the runtime's IANA rules, with the same rule-version
 limitation as the conversion engine. Planner selection clears on all input changes.
-There are no planner URLs, calendar export controls, individual/overnight windows,
+There are no planner URLs, individual/overnight windows,
 external integrations or planner analytics in this phase.
+
+## Selected meeting calendar export (Phase 3B)
+
+After selecting a meeting candidate, download its `.ics` event from the selected
+meeting summary. Export is allowed only while the exact start epoch is strictly
+in the future; exact-now and past starts are disabled. Only the small download
+control subscribes to the live clock, and the click handler checks current time
+again before exporting. The planner page is memoized against its clock-subscribing
+App parent. Planner calculations and event construction stay clock-independent.
+
+The planner helpers in `src/utils/calendarEvent.js` validate 2–5 distinct catalog
+locations and safe, serializable, whole-second start/end epochs. They copy both
+endpoints without recomputing duration or parsing local projections. Each city's
+local dates, times and endpoint timezone labels are regenerated from those epochs.
+The existing provider-neutral event, ICS serializer and browser download helper
+are shared with the two-city comparison export, whose contract is unchanged.
+
+Planner UIDs are `youhora-planner-v1-<start>-<end>-<sorted-dot-joined-city-slugs>@youhora.com`.
+City order affects presentation, not identity. Reference city/date, preferred hours
+and plan revision are excluded. Titles retain display order up to 120 UTF-16 code
+units (JavaScript string `.length`), then use `Meeting across N cities`;
+descriptions always retain every city.
+Filenames retain sanitized display-order slugs (48 characters per segment), cap
+the joined city stem at 120 characters, and preserve the UTC start timestamp and
+`.ics` extension, for a maximum of 157 ASCII characters. Filename truncation never
+affects UID generation. Editing planner inputs clears selection; retained handlers
+read a committed snapshot and are disabled on unmount. No planner sharing URL,
+calendar provider, invitation, analytics, recurrence or custom duration is added.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

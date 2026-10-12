@@ -379,12 +379,16 @@ button:hover span:last-child {
 .meeting-selected-cities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; }
 .meeting-selected-cities article { padding: 16px; border-radius: 12px; background: #0c192d; overflow-wrap: anywhere; }
 .meeting-selected-time { font-size: 1.3rem; font-weight: 700; }
+.meeting-calendar-download { margin-top: 20px; }
+.meeting-calendar-download button { max-width: 100%; overflow-wrap: anywhere; }
+.meeting-calendar-download .meeting-help:empty { margin: 0; }
 @media (max-width: 600px) {
   .meeting-controls { grid-template-columns: 1fr; }
   .meeting-city-row { align-items: stretch; flex-direction: column; }
   .meeting-add-city { flex-direction: column; align-items: stretch; }
   .meeting-planner-panel { padding: 16px; }
   .meeting-selected-cities { grid-template-columns: 1fr; }
+  .meeting-calendar-download button { width: 100%; }
   .meeting-candidate .meeting-candidate-locations { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
   .meeting-candidate-location { display: block; min-width: 0; }
   .meeting-candidate-location-divider { display: none; }

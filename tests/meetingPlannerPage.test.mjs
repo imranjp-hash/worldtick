@@ -4,12 +4,19 @@ import vm from "node:vm";
 import test from "node:test";
 import postcss from "postcss";
 import { transformWithOxc } from "vite";
+import { memo } from "react";
 import { cities } from "../src/data/cities.js";
 import * as planner from "../src/utils/meetingPlanner.js";
 import * as dateTime from "../src/utils/dateTime.js";
+import * as calendarEvent from "../src/utils/calendarEvent.js";
+import * as ics from "../src/utils/ics.js";
 
 const source = await readFile(new URL("../src/pages/MeetingPlannerPage.jsx", import.meta.url), "utf8");
 const { code } = await transformWithOxc(source, "MeetingPlannerPage.jsx", {
+  jsx: { runtime: "classic", pragma: "createElement" },
+});
+const controlSource = await readFile(new URL("../src/components/PlannerCalendarDownloadControl.jsx", import.meta.url), "utf8");
+const { code: controlCode } = await transformWithOxc(controlSource, "PlannerCalendarDownloadControl.jsx", {
   jsx: { runtime: "classic", pragma: "createElement" },
 });
 const withoutImports = (value) => value.replace(/^import[\s\S]*?;\r?\n/gm, "");
@@ -18,12 +25,71 @@ const text = (node) => node == null || typeof node === "boolean" ? "" : Array.is
 
 // Matches the repository's JSX/hooks handler harness: tests interactions and
 // retained handlers without adding a DOM package. Real layout needs browser QA.
-function pageHarness() {
+function pageHarness(options = {}) {
   const slots = [];
   let index = 0, tree, focused = 0;
+  let control = null, mounted = true;
+  let now = new Date("2026-01-01T00:00Z"), systemNow = now.getTime();
+  const downloads = [];
+  function mountControl() {
+    const controlSlots = [], effects = new Map(), pendingEffects = new Map();
+    let controlIndex = 0, props, wrapper;
+    const controlContext = vm.createContext({
+      ...calendarEvent, ...ics, React: { Fragment: "Fragment" },
+      useNow: () => now,
+      getCurrentEpochMilliseconds: () => systemNow,
+      downloadIcsFile: options.downloadIcsFile ?? ((payload) => downloads.push(payload)),
+      serializeCalendarEventToIcs: options.serializeCalendarEventToIcs ?? ics.serializeCalendarEventToIcs,
+      useState(initial) {
+        const slot = controlIndex++;
+        if (!(slot in controlSlots)) controlSlots[slot] = initial;
+        return [controlSlots[slot], (value) => {
+          controlSlots[slot] = typeof value === "function" ? value(controlSlots[slot]) : value;
+        }];
+      },
+      useRef(initial) {
+        const slot = controlIndex++;
+        if (!(slot in controlSlots)) controlSlots[slot] = { current: initial };
+        return controlSlots[slot];
+      },
+      useLayoutEffect(setup, deps) {
+        const slot = controlIndex++;
+        const prior = effects.get(slot);
+        if (!prior || deps.some((value, key) => !Object.is(value, prior.deps[key]))) pendingEffects.set(slot, { setup, deps });
+      },
+      createElement: (type, nodeProps, ...children) => ({ type, props: nodeProps || {}, children }),
+    });
+    vm.runInContext(withoutImports(controlCode).replace("export default function", "function"), controlContext);
+    function renderControl() {
+      controlIndex = 0;
+      wrapper.children = [controlContext.PlannerCalendarDownloadControl(props)];
+      for (const [slot, effect] of pendingEffects) {
+        effects.get(slot)?.cleanup?.();
+        effects.set(slot, { ...effect, cleanup: effect.setup() });
+      }
+      pendingEffects.clear();
+    }
+    return {
+      render: renderControl,
+      update(node) { wrapper = node; props = node.props; renderControl(); },
+      unmount() { for (const effect of effects.values()) effect.cleanup?.(); },
+      replayEffects() {
+        for (const [slot, effect] of effects) {
+          effect.cleanup?.(); effects.set(slot, { ...effect, cleanup: effect.setup() });
+        }
+      },
+    };
+  }
   const context = vm.createContext({
     ...planner, ...dateTime, cities, Date, Map, Link: "Link", React: { Fragment: "Fragment" },
-    useMemo: (fn) => fn(),
+    PlannerCalendarDownloadControl: "PlannerCalendarDownloadControl",
+    memo,
+    useMemo(fn, deps) {
+      const slot = index++;
+      const prior = slots[slot];
+      if (!prior || deps.some((value, key) => !Object.is(value, prior.deps[key]))) slots[slot] = { deps, value: fn() };
+      return slots[slot].value;
+    },
     useState(initial) {
       const slot = index++;
       if (!(slot in slots)) slots[slot] = initial;
@@ -39,8 +105,20 @@ function pageHarness() {
       return { type, props: props || {}, children };
     },
   });
-  vm.runInContext(withoutImports(code).replace("export default function", "function"), context);
-  function render() { index = 0; tree = context.MeetingPlannerPage(); }
+  vm.runInContext(withoutImports(code).replace("export default memo(MeetingPlannerPage)", "const memoizedPage = memo(MeetingPlannerPage)"), context);
+  const memoizedPage = vm.runInContext("memoizedPage", context);
+  assert.equal(memoizedPage.$$typeof, Symbol.for("react.memo"));
+  assert.equal(memoizedPage.type, context.MeetingPlannerPage);
+  function render() {
+    if (!mounted) return;
+    index = 0; tree = context.MeetingPlannerPage();
+    const wrapper = nodes("PlannerCalendarDownloadControl")[0];
+    if (wrapper) {
+      control ??= mountControl(); control.update(wrapper);
+    } else {
+      control?.unmount(); control = null;
+    }
+  }
   function nodes(type, root = tree) {
     const result = [];
     function visit(node) {
@@ -57,6 +135,14 @@ function pageHarness() {
   render();
   return {
     render, nodes, input, button, text: () => text(tree), focused: () => focused,
+    downloads,
+    calendarButton: () => button("Download calendar event (.ics)"),
+    calendarHandler: () => button("Download calendar event (.ics)")?.props.onClick,
+    download() { button("Download calendar event (.ics)").props.onClick(); control?.render(); },
+    setNow(value) { now = new Date(value); control?.render(); },
+    setSystemNow(value) { systemNow = value; },
+    unmount() { mounted = false; control?.unmount(); control = null; },
+    replayControlEffects() { control?.replayEffects(); },
     state: () => slots[0],
     change(id, value) { input(id).props.onChange({ target: { value } }); render(); },
     click(label) { const node = button(label); assert.ok(node, label); assert.ok(!node.props.disabled, label); node.props.onClick(); render(); },
@@ -390,7 +476,8 @@ test("mobile structure stacks cards, uses native radios and has no wide tables o
   assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.meeting-controls \{ grid-template-columns: 1fr; \}/);
   assert.match(css, /\.meeting-city-row \{ align-items: stretch; flex-direction: column; \}/);
   assert.match(css, /overflow-wrap: anywhere/);
-  assert.doesNotMatch(source, /analytics|ics|calendarEvent|URLSearchParams|useNow/);
+  assert.doesNotMatch(source, /analytics|URLSearchParams|useNow/);
+  assert.doesNotMatch(controlSource, /analytics|URLSearchParams|comparisonUrl/);
 });
 
 test("route, discovery, sitemap and static canonical metadata are wired", async () => {
@@ -408,4 +495,185 @@ test("route, discovery, sitemap and static canonical metadata are wired", async 
   const result = context.resolveRouteMetadata("/meeting-planner");
   assert.equal(result.canonicalPath, "/meeting-planner");
   assert.match(result.title, /Meeting Planner/);
+});
+
+test("calendar action appears only in the selected summary after all city details and exports exact epochs", () => {
+  const page = pageHarness();
+  assert.equal(page.calendarButton(), undefined);
+  page.change("meeting-date", "2027-03-27");
+  assert.equal(page.calendarButton(), undefined);
+  const radio = page.select();
+  const section = page.nodes("section").find((node) => node.props["aria-labelledby"] === "meeting-selected-title");
+  assert.equal(page.nodes("button", section).length, 1);
+  assert.equal(section.children.at(-1).type, "PlannerCalendarDownloadControl");
+  assert.equal(page.calendarButton().props.type, "button");
+  assert.equal(page.calendarButton().props.disabled, false);
+  page.download();
+  const logical = page.downloads[0].ics.replace(/\r\n[ \t]/g, "");
+  assert.match(logical, /DTSTART:20270327T130000Z\r\n/);
+  assert.match(logical, /DTEND:20270327T133000Z\r\n/);
+  assert.equal(page.state().selectedStartEpochMilliseconds, radio.props.value);
+  assert.equal(page.downloads[0].filename, "youhora-planner-toronto-london-20270327T130000Z.ics");
+});
+
+test("live expiry keeps the summary and button, disables exact-now/past and associates status text", () => {
+  const page = pageHarness(); page.change("meeting-date", "2027-03-27");
+  const radio = page.select(), start = radio.props.value;
+  page.setNow(start - 1); assert.equal(page.calendarButton().props.disabled, false);
+  page.setNow(start);
+  assert.equal(page.calendarButton().props.disabled, true);
+  assert.equal(page.calendarButton().props["aria-describedby"], "meeting-calendar-past-help");
+  const status = page.nodes("p").find((node) => node.props.id === "meeting-calendar-past-help");
+  assert.equal(status.props.role, "status"); assert.equal(status.props["aria-live"], "polite");
+  assert.equal(text(status), "This meeting time has already passed.");
+  assert.match(page.text(), /Selected meeting · 30 minutes/);
+  page.setNow(start + 1); assert.equal(page.calendarButton().props.disabled, true);
+  page.setSystemNow(start + 1); page.download(); assert.equal(page.downloads.length, 0);
+});
+
+test("click-time recheck rejects expiry and invalid current time without waiting for a clock render", () => {
+  for (const delta of [0, 1, NaN, Infinity]) {
+    const page = pageHarness(); page.change("meeting-date", "2027-03-27");
+    const radio = page.select(); page.setNow(radio.props.value - 1);
+    assert.equal(page.calendarButton().props.disabled, false);
+    page.setSystemNow(radio.props.value + delta); page.download();
+    assert.equal(page.downloads.length, 0);
+  }
+  const page = pageHarness(); page.change("meeting-date", "2027-03-27"); page.select();
+  page.setNow(NaN); assert.equal(page.calendarButton().props.disabled, true);
+});
+
+test("every planner edit invalidates retained export handlers, including reference removal", () => {
+  for (const edit of [
+    (page) => page.change("meeting-date", "2027-03-28"),
+    (page) => page.change("meeting-hours-start", "08:00"),
+    (page) => page.change("meeting-hours-end", "18:00"),
+    (page) => page.click("Make London reference"),
+    (page) => page.add("berlin"),
+    (page) => page.click("Remove Paris"),
+    (page) => page.click("Remove Toronto"),
+  ]) {
+    const page = pageHarness(); page.add("paris"); page.change("meeting-date", "2027-03-27"); page.select();
+    const oldHandler = page.calendarHandler(); edit(page);
+    assert.equal(page.state().selectedStartEpochMilliseconds, null);
+    assert.equal(page.calendarButton(), undefined);
+    oldHandler(); assert.equal(page.downloads.length, 0);
+    page.select(); oldHandler(); assert.equal(page.downloads.length, 0, "unmounted control must stay inactive after a fresh selection");
+    page.download(); assert.equal(page.downloads.length, 1);
+  }
+});
+
+test("change-away-and-back cannot revive the old export identity even after reselecting its epoch", () => {
+  for (const roundTrip of [
+    (page) => { page.change("meeting-date", "2027-03-28"); page.change("meeting-date", "2027-03-27"); },
+    (page) => { page.click("Make London reference"); page.click("Make Toronto reference"); },
+    (page) => { page.change("meeting-hours-start", "08:00"); page.change("meeting-hours-start", "09:00"); },
+    (page) => { page.change("meeting-hours-end", "18:00"); page.change("meeting-hours-end", "17:00"); },
+    (page) => { page.add("paris"); page.click("Remove Paris"); },
+  ]) {
+    const page = pageHarness(); page.change("meeting-date", "2027-03-27"); page.select();
+    const handler = page.calendarHandler(); roundTrip(page);
+    handler(); assert.equal(page.downloads.length, 0);
+    page.select(); handler(); assert.equal(page.downloads.length, 0);
+    page.download(); assert.equal(page.downloads.length, 1);
+  }
+});
+
+test("retained export handler uses only the latest committed candidate and unmount clears it", () => {
+  const page = pageHarness(); page.change("meeting-date", "2027-03-27"); page.select();
+  const retained = page.calendarHandler();
+  const next = page.nodes("input").filter((node) => node.props.type === "radio")[1];
+  next.props.onChange(); page.render(); retained();
+  assert.equal(page.downloads.length, 1);
+  const logical = page.downloads[0].ics.replace(/\r\n[ \t]/g, "");
+  assert.match(logical, /DTSTART:20270327T133000Z\r\n/);
+  assert.match(logical, /DTEND:20270327T140000Z\r\n/);
+  page.replayControlEffects(); retained(); assert.equal(page.downloads.length, 2);
+  page.unmount(); retained(); assert.equal(page.downloads.length, 2);
+});
+
+test("selected alternatives export despite no common overlap and pending dropdown/UI changes preserve identity", () => {
+  const page = pageHarness(); page.add("tokyo"); page.change("meeting-date", "2027-03-27");
+  page.click("Show alternatives"); page.select();
+  const handler = page.calendarHandler(), revision = page.state().planRevision;
+  page.nodes("select")[0].props.onChange({ target: { value: "paris" } }); page.render();
+  page.click("Hide alternatives"); page.click("Show alternatives");
+  page.change("meeting-date", "2027-03-27"); page.change("meeting-hours-start", "09:00");
+  assert.equal(page.state().planRevision, revision);
+  handler(); assert.equal(page.downloads.length, 1);
+  assert.match(page.downloads[0].ics.replace(/\r\n[ \t]/g, ""), /Tokyo:/);
+});
+
+test("download/serializer failure announces a retryable message scoped to the current selection", () => {
+  for (const failure of ["downloadIcsFile", "serializeCalendarEventToIcs"]) {
+    let attempts = 0;
+    const page = pageHarness({ [failure]: (...args) => {
+      if ([0, 2].includes(attempts++)) throw Error("Test failure");
+      if (failure === "serializeCalendarEventToIcs") return ics.serializeCalendarEventToIcs(...args);
+    } });
+    page.change("meeting-date", "2027-03-27"); page.select(); page.download();
+    assert.match(page.text(), /Unable to download the calendar event. Please try again./);
+    page.download(); assert.doesNotMatch(page.text(), /Unable to download/);
+    assert.equal(text(page.nodes("p").find((node) => node.props.id === "meeting-calendar-past-help")), "",
+      "a successful retry clears feedback without inventing a success announcement");
+    page.download(); assert.match(page.text(), /Unable to download/);
+    const next = page.nodes("input").filter((node) => node.props.type === "radio")[1];
+    next.props.onChange(); page.render();
+    assert.doesNotMatch(page.text(), /Unable to download/);
+  }
+});
+
+test("download failure survives eligible clock ticks but expiry replaces it without clearing selection", () => {
+  const page = pageHarness({ downloadIcsFile() { throw Error("Download failed"); } });
+  page.change("meeting-date", "2027-03-27");
+  const selected = page.select(), start = selected.props.value;
+  page.setNow(start - 2000); page.download();
+  assert.match(page.text(), /Unable to download the calendar event. Please try again./);
+  const control = page.nodes("PlannerCalendarDownloadControl")[0];
+  assert.equal(page.nodes("p", control).filter((node) => node.props.role === "status").length, 1);
+  assert.equal(page.nodes("span", control).filter((node) => node.props.role === "status").length, 0);
+  for (const now of [start - 1000, start - 1]) {
+    page.setNow(now);
+    assert.equal(page.calendarButton().props.disabled, false);
+    assert.match(page.text(), /Unable to download/);
+  }
+  page.setSystemNow(start); page.setNow(start);
+  assert.equal(page.calendarButton().props.disabled, true);
+  assert.match(page.text(), /This meeting time has already passed./);
+  assert.doesNotMatch(page.text(), /Unable to download|Please try again/);
+  assert.equal(page.state().selectedStartEpochMilliseconds, start);
+  assert.match(page.text(), /Selected meeting · 30 minutes/);
+  assert.equal(page.calendarButton().props["aria-describedby"], "meeting-calendar-past-help");
+  // A later clock correction must not resurrect feedback invalidated by expiry.
+  page.setNow(start - 1);
+  assert.doesNotMatch(page.text(), /Unable to download|Please try again/);
+});
+
+test("A to B to A never resurrects a prior selection's failed download feedback", () => {
+  for (const stage of ["downloadIcsFile", "serializeCalendarEventToIcs"]) {
+    const page = pageHarness({ [stage]() { throw Error("Attempt failed"); } });
+    page.change("meeting-date", "2027-03-27");
+    const a = page.select(); page.download();
+    assert.match(page.text(), /Unable to download/);
+    const b = page.nodes("input").filter((node) => node.props.type === "radio")[1];
+    b.props.onChange(); page.render();
+    assert.equal(page.state().selectedStartEpochMilliseconds, b.props.value);
+    assert.doesNotMatch(page.text(), /Unable to download|Please try again/);
+    a.props.onChange(); page.render();
+    assert.equal(page.state().selectedStartEpochMilliseconds, a.props.value);
+    assert.doesNotMatch(page.text(), /Unable to download|Please try again/);
+    page.download();
+    assert.match(page.text(), /Unable to download/, "a new failed attempt can show its own feedback");
+  }
+});
+
+test("download action wraps within its panel, stacks on mobile and keeps existing focus styling", async () => {
+  const css = postcss.parse(await readFile(new URL("../src/App.css", import.meta.url), "utf8"));
+  const rules = [];
+  css.walkRules(".meeting-calendar-download button", (rule) => rules.push(rule));
+  assert.equal(rules.length, 2);
+  assert.ok(rules[0].nodes.some((node) => node.prop === "max-width" && node.value === "100%"));
+  assert.ok(rules[0].nodes.some((node) => node.prop === "overflow-wrap" && node.value === "anywhere"));
+  assert.match(rules[1].parent.params, /max-width: 600px/);
+  assert.ok(rules[1].nodes.some((node) => node.prop === "width" && node.value === "100%"));
 });
