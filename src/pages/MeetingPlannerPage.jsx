@@ -1,9 +1,11 @@
-import { memo, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cities } from "../data/cities";
 import { generateMeetingPlan, MIN_PLANNER_DATE, MAX_PLANNER_DATE } from "../utils/meetingPlanner";
 import { formatDateInZone, formatTimeInZone, getTimeZoneDisplay } from "../utils/dateTime";
 import PlannerCalendarDownloadControl from "../components/PlannerCalendarDownloadControl";
+import { parseMeetingPlannerSearch } from "../utils/meetingPlannerUrl";
+import usePlannerSharing from "../hooks/usePlannerSharing";
 
 const dateOptions = { weekday: "short", year: "numeric", month: "short", day: "numeric" };
 const timeOptions = { hour: "numeric", minute: "2-digit", second: undefined, hour12: true };
@@ -27,15 +29,19 @@ function cityInterval(location, candidate) {
   return { start, end, startDate, endDate, startTime, endTime };
 }
 
-function MeetingPlannerPage() {
-  const [state, setState] = useState({
+function MeetingPlannerPage({ initialization = { status: "default" }, copyPending } = {}) {
+  const [state, setState] = useState(() => ({
     citySlugs: ["toronto", "london"], referenceCitySlug: "toronto", referenceDate: "",
-    preferredWindow: { start: "09:00", end: "17:00" }, selectedStartEpochMilliseconds: null,
-    planRevision: 0, showAlternatives: false, referenceNotice: "",
-  });
+    preferredWindow: { start: "09:00", end: "17:00" },
+    planRevision: 0, showAlternatives: Boolean(initialization.selectedStartEpochMilliseconds), referenceNotice: "",
+    ...(initialization.inputs ?? {}),
+    selectedStartEpochMilliseconds: initialization.selectedStartEpochMilliseconds ?? null,
+    selectionNotice: initialization.selectionIssue
+      ? "The plan loaded, but the linked meeting time could not be restored. Choose a time below." : "",
+  }));
   const [addingCity, setAddingCity] = useState("");
   const dateInput = useRef(null);
-  const { citySlugs, referenceCitySlug, referenceDate, preferredWindow, selectedStartEpochMilliseconds,
+  const { citySlugs, referenceCitySlug, referenceDate, preferredWindow, selectedStartEpochMilliseconds, selectionNotice,
     planRevision, showAlternatives, referenceNotice } = state;
   const referenceCity = cityBySlug.get(referenceCitySlug);
   const plan = useMemo(() => referenceDate ? generateMeetingPlan({
@@ -49,6 +55,7 @@ function MeetingPlannerPage() {
   const mainCandidates = plan?.status === "success" ? plan.preferredCandidates : [];
   const displayedCandidates = mainCandidates.length ? mainCandidates
     : showAlternatives && plan?.status === "success" ? plan.alternatives : [];
+  const sharing = usePlannerSharing({ ...state, plan, selectedCandidate, copyPending });
 
   function edit(changes) {
     setState((current) => {
@@ -56,7 +63,7 @@ function MeetingPlannerPage() {
       if (next.citySlugs === current.citySlugs && next.referenceCitySlug === current.referenceCitySlug
         && next.referenceDate === current.referenceDate && next.preferredWindow.start === current.preferredWindow.start
         && next.preferredWindow.end === current.preferredWindow.end) return current;
-      return { ...next, planRevision: current.planRevision + 1, selectedStartEpochMilliseconds: null, showAlternatives: false };
+      return { ...next, planRevision: current.planRevision + 1, selectedStartEpochMilliseconds: null, showAlternatives: false, selectionNotice: "" };
     });
   }
 
@@ -64,7 +71,7 @@ function MeetingPlannerPage() {
     setState((current) => {
       if (!cityBySlug.has(addingCity) || current.citySlugs.includes(addingCity) || current.citySlugs.length >= 5) return current;
       return { ...current, citySlugs: [...current.citySlugs, addingCity], planRevision: current.planRevision + 1,
-        selectedStartEpochMilliseconds: null, showAlternatives: false };
+        selectedStartEpochMilliseconds: null, showAlternatives: false, selectionNotice: "" };
     });
     setAddingCity("");
   }
@@ -76,7 +83,7 @@ function MeetingPlannerPage() {
       const nextReference = current.referenceCitySlug === slug ? nextCities[0] : current.referenceCitySlug;
       return { ...current, citySlugs: nextCities,
         referenceCitySlug: nextReference, planRevision: current.planRevision + 1,
-        selectedStartEpochMilliseconds: null, showAlternatives: false,
+        selectedStartEpochMilliseconds: null, showAlternatives: false, selectionNotice: "",
         referenceNotice: current.referenceCitySlug === slug
           ? `${cityBySlug.get(nextReference).name} is now the reference city. The entered date is preserved.`
           : current.referenceNotice };
@@ -89,7 +96,7 @@ function MeetingPlannerPage() {
     setState((current) => {
       if (!current.citySlugs.includes(slug) || current.referenceCitySlug === slug) return current;
       return { ...current, referenceCitySlug: slug, planRevision: current.planRevision + 1,
-        selectedStartEpochMilliseconds: null, showAlternatives: false,
+        selectedStartEpochMilliseconds: null, showAlternatives: false, selectionNotice: "",
         referenceNotice: `${cityBySlug.get(slug).name} is now the reference city. The entered date is preserved.` };
     });
   }
@@ -100,7 +107,7 @@ function MeetingPlannerPage() {
       if (current.planRevision !== planRevision) return current;
       const currentPlan = generateMeetingPlan(current);
       return currentPlan.status === "success" && currentPlan.candidates.some((candidate) => candidate.startEpochMilliseconds === epoch)
-        ? { ...current, selectedStartEpochMilliseconds: epoch } : current;
+        ? { ...current, selectedStartEpochMilliseconds: epoch, selectionNotice: "" } : current;
     });
   }
 
@@ -160,11 +167,16 @@ function MeetingPlannerPage() {
           <p id="meeting-hours-help" className="meeting-help">One local window applies to every city, every day. The entire 30-minute meeting must fit. Overnight hours are not supported yet.</p>
         </fieldset>
         {error && <p id="meeting-error" role="alert" className="meeting-error">{error.message}</p>}
+        {selectionNotice && <p role="status" aria-live="polite" className="meeting-help">{selectionNotice}</p>}
         {!referenceDate && <p>Choose a meeting date to see candidate times.</p>}
         <p role="status" aria-live="polite" className="meeting-result-count">
           {plan?.status === "success" ? `${mainCandidates.length} candidate${mainCandidates.length === 1 ? "" : "s"} with all cities within preferred hours.` : ""}
         </p>
         {plan?.status === "success" && <section aria-label="Meeting candidates">
+          <div className="meeting-share-action">
+            <button type="button" onClick={sharing.copyPlan} aria-describedby="meeting-plan-copy-status">Copy plan link</button>
+            <p id="meeting-plan-copy-status" className="meeting-help" role="status" aria-live="polite">{sharing.planMessage}</p>
+          </div>
           <h2>{mainCandidates.length ? "All cities within preferred hours" : "No common preferred-hours overlap at the sampled 30-minute start times."}</h2>
           {!mainCandidates.length && <>
             <button type="button" aria-expanded={showAlternatives} aria-controls="meeting-candidate-options" onClick={() => setState((current) => ({ ...current, showAlternatives: !current.showAlternatives }))}>
@@ -201,6 +213,9 @@ function MeetingPlannerPage() {
         </section>}
         {selectedCandidate && <section className="meeting-planner-panel" aria-labelledby="meeting-selected-title">
           <h2 id="meeting-selected-title">Selected meeting · 30 minutes</h2>
+          {!selectedCandidate.allWithinPreferredHours && <p className="meeting-help">
+            This selected meeting is outside preferred hours for: {selectedCandidate.locations.filter((location) => !location.isWithinPreferredHours).map((location) => cityBySlug.get(location.citySlug).name).join(", ")}.
+          </p>}
           <div className="meeting-selected-cities">
             {selectedCandidate.locations.map((location) => {
               const city = cityBySlug.get(location.citySlug);
@@ -217,7 +232,13 @@ function MeetingPlannerPage() {
               </article>;
             })}
           </div>
-          <PlannerCalendarDownloadControl selectedCandidate={selectedCandidate} planRevision={planRevision} />
+          <div className="meeting-selected-actions">
+            <div className="meeting-share-action">
+              <button type="button" onClick={sharing.copySelected} aria-describedby="meeting-selected-copy-status">Copy selected meeting link</button>
+              <p id="meeting-selected-copy-status" className="meeting-help" role="status" aria-live="polite">{sharing.selectedMessage}</p>
+            </div>
+            <PlannerCalendarDownloadControl selectedCandidate={selectedCandidate} planRevision={planRevision} />
+          </div>
         </section>}
         <p className="meeting-help"><Link to="/time-difference">Compare a specific time between two cities</Link></p>
       </div>
@@ -226,4 +247,41 @@ function MeetingPlannerPage() {
 }
 
 // App consumes the shared clock too. Its ticks must not reformat planner rows.
-export default memo(MeetingPlannerPage);
+const PlannerEditor = memo(MeetingPlannerPage);
+
+function MeetingPlannerRoute() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Back can reuse a history key. Give each observed location visit a fresh
+  // token, and authorize recovery only against the latest committed visit.
+  const visit = useMemo(() => ({ location }), [location]);
+  const activeVisit = useRef(null);
+  useLayoutEffect(() => {
+    activeVisit.current = visit;
+    return () => {
+      if (activeVisit.current === visit) activeVisit.current = null;
+    };
+  }, [visit]);
+
+  function startNewPlan() {
+    if (activeVisit.current !== visit) return;
+    navigate("/meeting-planner");
+  }
+
+  // Keep the outstanding-write lock across editor replacements: an old clipboard
+  // promise cannot race a new navigation's copy action.
+  const copyPending = useRef(false);
+  const initialization = useMemo(() => parseMeetingPlannerSearch(location.search), [location.search]);
+  if (initialization.status === "invalid") return <main className="meeting-planner-page">
+    <div className="meeting-planner-content">
+      <h1>Find a time across cities</h1>
+      <p role="alert" className="meeting-error">This shared plan link is incomplete or invalid.</p>
+      <button type="button" onClick={startNewPlan}>Start a new plan</button>
+    </div>
+  </main>;
+  // A history return mounts a fresh editor, even when it revisits the same key.
+  // Cleanup makes old copy/export handlers inert; no URL-write effects are needed.
+  return <PlannerEditor key={JSON.stringify([location.key, location.pathname, location.search, location.hash])} initialization={initialization} copyPending={copyPending} />;
+}
+
+export default memo(MeetingPlannerRoute);

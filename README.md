@@ -65,6 +65,62 @@ affects UID generation. Editing planner inputs clears selection; retained handle
 read a committed snapshot and are disabled on unmount. No planner sharing URL,
 calendar provider, invitation, analytics, recurrence or custom duration is added.
 
+## Shareable meeting plans (Phase 3C)
+
+`Copy plan link` shares a complete planner configuration. `Copy selected meeting
+link`, in the selected-meeting summary, additionally shares its exact start
+epoch. Both use the production origin and `/meeting-planner`, independently of
+the development hostname. Copying and local edits do not change browser history
+or synchronize the address bar. Local edits are an unsaved draft: refresh and
+Back/Forward initialize the visited URL afresh, including selection.
+
+The v1 canonical order is `v`, `cities`, `reference`, `date`, `hoursStart`,
+`hoursEnd`, optional `start`. Every copied link includes `v=1`, 2–5 distinct
+catalog slugs in display order, an explicit selected reference city, its ISO
+calendar date and both preferred local endpoints, even when equal to defaults.
+Distinct cities sharing a timezone remain distinct. `URLSearchParams` encodes
+the raw comma-joined slugs and minute times. Extras and fragments are omitted.
+
+```text
+https://www.youhora.com/meeting-planner?v=1&cities=toronto%2Clondon%2Ctokyo&reference=toronto&date=2027-03-27&hoursStart=09%3A00&hoursEnd=17%3A00
+https://www.youhora.com/meeting-planner?v=1&cities=toronto%2Clondon%2Ctokyo&reference=toronto&date=2027-03-27&hoursStart=09%3A00&hoursEnd=17%3A00&start=1806152400000
+```
+
+v1 retains fixed 30-elapsed-minute duration and sampling, one shared same-day
+preferred window and the existing 2020-01-01 through 9999-12-30 date policy.
+Missing/empty/duplicate/unknown versions or incomplete/invalid plan fields show
+an invalid-link error rather than a fallback plan. `Start a new plan` navigates
+to `/meeting-planner` and removes the query and fragment. No recognized planner
+parameters means the ordinary blank-date default planner.
+
+`start` is an optional canonical unsigned safe-integer epoch in milliseconds,
+never a wall time, occurrence label, rank or array index. Duplicate/malformed
+starts and nonmembers clear selection while preserving the valid plan and
+showing a concise notice. Exact membership is checked against all regenerated
+candidates, including alternatives. Restored alternatives are explained in the
+selected summary; no-overlap alternatives open on restoration. Toronto's two
+2027-11-07 1:00 AM occurrences have distinct starts `1825563600000` (EDT) and
+`1825567200000` (EST). v1 does not serialize an end because duration is fixed.
+
+Runtime IANA rules are not pinned. A formerly valid selected epoch may no longer
+be a candidate after a rule update: the valid plan still loads, selection clears,
+and no nearest candidate is substituted. Even a retained epoch's local labels
+and preferred-hours classifications can change with runtime timezone data.
+
+Copy handlers read the latest committed inputs/selection. One outstanding write
+is allowed across both actions and editor replacements within the route; old
+navigation handlers are inert. Success/failure feedback is polite, expires after
+two seconds and cannot reappear after edits, selection changes, history returns
+or unmount. Past meetings remain shareable; future-only `.ics` eligibility and
+Phase 3B export semantics remain unchanged.
+
+No planner analytics, provider integrations, individual/overnight windows,
+custom duration, shortened links or server-side shared state are added. Query
+states retain the static planner SEO canonical and are absent from the sitemap.
+Manual page-view payloads remain query-free. Release QA must separately inspect
+consented GA4 network payloads and external enhanced-measurement settings; these
+are outside the repository and can capture history URLs independently.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

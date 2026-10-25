@@ -10,6 +10,7 @@ import * as planner from "../src/utils/meetingPlanner.js";
 import * as dateTime from "../src/utils/dateTime.js";
 import * as calendarEvent from "../src/utils/calendarEvent.js";
 import * as ics from "../src/utils/ics.js";
+import { parseMeetingPlannerSearch } from "../src/utils/meetingPlannerUrl.js";
 
 const source = await readFile(new URL("../src/pages/MeetingPlannerPage.jsx", import.meta.url), "utf8");
 const { code } = await transformWithOxc(source, "MeetingPlannerPage.jsx", {
@@ -83,6 +84,7 @@ function pageHarness(options = {}) {
   const context = vm.createContext({
     ...planner, ...dateTime, cities, Date, Map, Link: "Link", React: { Fragment: "Fragment" },
     PlannerCalendarDownloadControl: "PlannerCalendarDownloadControl",
+    usePlannerSharing: () => ({ copyPlan() {}, copySelected() {}, planMessage: "", selectedMessage: "" }),
     memo,
     useMemo(fn, deps) {
       const slot = index++;
@@ -92,7 +94,7 @@ function pageHarness(options = {}) {
     },
     useState(initial) {
       const slot = index++;
-      if (!(slot in slots)) slots[slot] = initial;
+      if (!(slot in slots)) slots[slot] = typeof initial === "function" ? initial() : initial;
       return [slots[slot], (value) => { slots[slot] = typeof value === "function" ? value(slots[slot]) : value; }];
     },
     useRef(initial) {
@@ -105,13 +107,13 @@ function pageHarness(options = {}) {
       return { type, props: props || {}, children };
     },
   });
-  vm.runInContext(withoutImports(code).replace("export default memo(MeetingPlannerPage)", "const memoizedPage = memo(MeetingPlannerPage)"), context);
+  vm.runInContext(withoutImports(code).replace("export default memo(MeetingPlannerRoute)", "const memoizedPage = memo(MeetingPlannerPage)"), context);
   const memoizedPage = vm.runInContext("memoizedPage", context);
   assert.equal(memoizedPage.$$typeof, Symbol.for("react.memo"));
   assert.equal(memoizedPage.type, context.MeetingPlannerPage);
   function render() {
     if (!mounted) return;
-    index = 0; tree = context.MeetingPlannerPage();
+    index = 0; tree = context.MeetingPlannerPage({ initialization: parseMeetingPlannerSearch(options.search ?? "") });
     const wrapper = nodes("PlannerCalendarDownloadControl")[0];
     if (wrapper) {
       control ??= mountControl(); control.update(wrapper);
@@ -504,8 +506,9 @@ test("calendar action appears only in the selected summary after all city detail
   assert.equal(page.calendarButton(), undefined);
   const radio = page.select();
   const section = page.nodes("section").find((node) => node.props["aria-labelledby"] === "meeting-selected-title");
-  assert.equal(page.nodes("button", section).length, 1);
-  assert.equal(section.children.at(-1).type, "PlannerCalendarDownloadControl");
+  assert.equal(page.nodes("button", section).length, 2);
+  assert.equal(section.children.at(-1).props.className, "meeting-selected-actions");
+  assert.equal(section.children.at(-1).children.at(-1).type, "PlannerCalendarDownloadControl");
   assert.equal(page.calendarButton().props.type, "button");
   assert.equal(page.calendarButton().props.disabled, false);
   page.download();
@@ -676,4 +679,70 @@ test("download action wraps within its panel, stacks on mobile and keeps existin
   assert.ok(rules[0].nodes.some((node) => node.prop === "overflow-wrap" && node.value === "anywhere"));
   assert.match(rules[1].parent.params, /max-width: 600px/);
   assert.ok(rules[1].nodes.some((node) => node.prop === "width" && node.value === "100%"));
+});
+
+const sharedSearch = "?v=1&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hoursStart=09%3A00&hoursEnd=17%3A00";
+
+test("shared plan and selected links expose distinct native sharing actions", () => {
+  const page = pageHarness({ search: sharedSearch });
+  assert.ok(page.button("Copy plan link"));
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+  page.select();
+  assert.equal(page.button("Copy plan link").props.type, "button");
+  assert.equal(page.button("Copy selected meeting link").props.type, "button");
+  assert.equal(page.button("Copy plan link").props["aria-describedby"], "meeting-plan-copy-status");
+  assert.equal(page.button("Copy selected meeting link").props["aria-describedby"], "meeting-selected-copy-status");
+  assert.ok(page.nodes("p").some((node) => node.props.id === "meeting-selected-copy-status"
+    && node.props.role === "status" && node.props["aria-live"] === "polite"));
+});
+
+test("hydrated hidden alternative stays selected and explicitly explains outside-hours cities", () => {
+  const epoch = Date.parse("2027-03-27T04:00Z");
+  const page = pageHarness({ search: `${sharedSearch}&start=${epoch}` });
+  assert.equal(page.state().selectedStartEpochMilliseconds, epoch);
+  assert.match(page.text(), /This selected meeting is outside preferred hours for: Toronto, London/);
+  assert.match(page.text(), /Selected meeting/);
+  assert.ok(page.button("Copy selected meeting link"));
+  assert.ok(page.nodes("input").some((node) => node.props.type === "radio"));
+});
+
+test("hydrated alternative opens no-overlap alternatives and input edits clear restored identity", () => {
+  const page = pageHarness({ search: `${sharedSearch.replace("toronto%2Clondon", "toronto%2Clondon%2Ctokyo")}&start=1806152400000` });
+  assert.equal(page.state().showAlternatives, true);
+  assert.ok(page.nodes("input").some((node) => node.props.checked && node.props.value === 1806152400000));
+  assert.match(page.text(), /outside preferred hours for: Tokyo/);
+  const retained = page.nodes("input").find((node) => node.props.checked).props.onChange;
+  page.change("meeting-date", "2027-03-28"); page.change("meeting-date", "2027-03-27");
+  retained(); page.render();
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+});
+
+test("invalid selected epoch keeps inputs and clears its notice on edit or fresh selection", () => {
+  const page = pageHarness({ search: `${sharedSearch}&start=1806152400001` });
+  assert.equal(page.state().referenceDate, "2027-03-27");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  assert.match(page.text(), /The plan loaded, but the linked meeting time could not be restored/);
+  page.select();
+  assert.doesNotMatch(page.text(), /linked meeting time could not be restored/);
+  const edited = pageHarness({ search: `${sharedSearch}&start=bad` });
+  edited.change("meeting-hours-end", "18:00");
+  assert.doesNotMatch(edited.text(), /linked meeting time could not be restored/);
+});
+
+test("sharing actions wrap, stack below 600px and retain the existing native focus rule", async () => {
+  const css = postcss.parse(await readFile(new URL("../src/App.css", import.meta.url), "utf8"));
+  const declarations = (selector, mobile = false) => {
+    const result = {};
+    css.walkRules((rule) => {
+      const isMobile = rule.parent.type === "atrule" && /max-width:\s*600px/.test(rule.parent.params);
+      if (rule.selector === selector && Boolean(isMobile) === mobile) rule.walkDecls((decl) => { result[decl.prop] = decl.value; });
+    });
+    return result;
+  };
+  assert.equal(declarations(".meeting-share-action button")["max-width"], "100%");
+  assert.equal(declarations(".meeting-share-action button")["overflow-wrap"], "anywhere");
+  assert.equal(declarations(".meeting-selected-actions")["flex-wrap"], "wrap");
+  assert.equal(declarations(".meeting-selected-actions", true)["flex-direction"], "column");
+  assert.equal(declarations(".meeting-share-action button", true).width, "100%");
 });

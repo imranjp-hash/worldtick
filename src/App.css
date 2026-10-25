@@ -382,7 +382,14 @@ button:hover span:last-child {
 .meeting-calendar-download { margin-top: 20px; }
 .meeting-calendar-download button { max-width: 100%; overflow-wrap: anywhere; }
 .meeting-calendar-download .meeting-help:empty { margin: 0; }
+.meeting-share-action button { max-width: 100%; overflow-wrap: anywhere; }
+.meeting-share-action .meeting-help:empty { margin: 0; }
+.meeting-selected-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; margin-top: 20px; }
+.meeting-selected-actions .meeting-calendar-download { margin-top: 0; }
+.meeting-selected-actions > div { min-width: 0; }
 @media (max-width: 600px) {
+  .meeting-selected-actions { flex-direction: column; align-items: stretch; }
+  .meeting-share-action button { width: 100%; }
   .meeting-controls { grid-template-columns: 1fr; }
   .meeting-city-row { align-items: stretch; flex-direction: column; }
   .meeting-add-city { flex-direction: column; align-items: stretch; }
