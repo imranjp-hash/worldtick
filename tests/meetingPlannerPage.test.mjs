@@ -28,8 +28,9 @@ const text = (node) => node == null || typeof node === "boolean" ? "" : Array.is
 // retained handlers without adding a DOM package. Real layout needs browser QA.
 function pageHarness(options = {}) {
   const slots = [];
-  let index = 0, tree, focused = 0;
+  let index = 0, tree, focused = 0, focusedId = null;
   let control = null, mounted = true;
+  const effects = new Map(), pendingEffects = new Map();
   let now = new Date("2026-01-01T00:00Z"), systemNow = now.getTime();
   const downloads = [];
   function mountControl() {
@@ -102,8 +103,16 @@ function pageHarness(options = {}) {
       if (!(slot in slots)) slots[slot] = { current: initial };
       return slots[slot];
     },
+    useLayoutEffect(setup, deps) {
+      const slot = index++;
+      const prior = effects.get(slot);
+      if (!prior || deps.some((value, key) => !Object.is(value, prior.deps[key]))) pendingEffects.set(slot, { setup, deps });
+    },
     createElement(type, props, ...children) {
-      if (props?.ref) props.ref.current = { focus: () => { focused++; } };
+      if (props?.ref) {
+        const node = { focus: () => { focused++; focusedId = props.id; } };
+        if (typeof props.ref === "function") props.ref(node); else props.ref.current = node;
+      }
       return { type, props: props || {}, children };
     },
   });
@@ -114,6 +123,10 @@ function pageHarness(options = {}) {
   function render() {
     if (!mounted) return;
     index = 0; tree = context.MeetingPlannerPage({ initialization: parseMeetingPlannerSearch(options.search ?? "") });
+    for (const [slot, effect] of pendingEffects) {
+      effects.get(slot)?.cleanup?.(); effects.set(slot, { ...effect, cleanup: effect.setup() });
+    }
+    pendingEffects.clear();
     const wrapper = nodes("PlannerCalendarDownloadControl")[0];
     if (wrapper) {
       control ??= mountControl(); control.update(wrapper);
@@ -136,7 +149,7 @@ function pageHarness(options = {}) {
   const button = (label) => nodes("button").find((node) => text(node) === label || node.props["aria-label"] === label);
   render();
   return {
-    render, nodes, input, button, text: () => text(tree), focused: () => focused,
+    render, nodes, input, button, text: () => text(tree), focused: () => focused, focusedId: () => focusedId,
     downloads,
     calendarButton: () => button("Download calendar event (.ics)"),
     calendarHandler: () => button("Download calendar event (.ics)")?.props.onClick,
@@ -186,21 +199,20 @@ test("reference change preserves ISO date, recalculates and clears selection", (
 test("removing reference promotes first remaining city and recovers focus", () => {
   const page = pageHarness();
   page.add("paris"); page.change("meeting-date", "2027-03-27"); page.select();
+  const focusBeforeRemoval = page.focused();
   page.click("Remove Toronto");
   assert.equal(page.state().referenceCitySlug, "london");
   assert.deepEqual(Array.from(page.state().citySlugs), ["london", "paris"]);
   assert.equal(page.state().selectedStartEpochMilliseconds, null);
   assert.match(page.text(), /London is now the reference city/);
-  assert.equal(page.focused(), 1);
+  assert.equal(page.focused(), focusBeforeRemoval + 1);
   assert.ok(page.button("Remove London").props.disabled);
 });
 
-test("city/date/window edits clear selected identity, including rapid edits and stale radios", () => {
+test("city/date edits clear selected identity, including stale radios", () => {
   for (const edit of [
     (page) => page.add("paris"),
     (page) => page.change("meeting-date", "2027-03-28"),
-    (page) => page.change("meeting-hours-start", "08:00"),
-    (page) => page.change("meeting-hours-end", "18:00"),
     (page) => page.click("Remove Paris"),
   ]) {
     const page = pageHarness(); page.add("paris"); page.change("meeting-date", "2027-03-27");
@@ -214,19 +226,17 @@ test("city/date/window edits clear selected identity, including rapid edits and 
     assert.doesNotMatch(page.text(), /Selected meeting ·/);
   }
   const page = pageHarness();
-  const startHandler = page.input("meeting-hours-start").props.onChange;
-  const endHandler = page.input("meeting-hours-end").props.onChange;
+  const startHandler = page.input("meeting-hours-toronto-start").props.onChange;
+  const endHandler = page.input("meeting-hours-toronto-end").props.onChange;
   startHandler({ target: { value: "08:15" } }); endHandler({ target: { value: "18:45" } }); page.render();
-  assert.equal(page.state().preferredWindow.start, "08:15");
-  assert.equal(page.state().preferredWindow.end, "18:45");
+  assert.equal(page.state().cityPreferences.toronto.start, "08:15");
+  assert.equal(page.state().cityPreferences.toronto.end, "18:45");
 });
 
 test("candidate revisions reject retained radios after inputs change away and back", () => {
   for (const roundTrip of [
     (page) => { page.change("meeting-date", "2027-03-28"); page.change("meeting-date", "2027-03-27"); },
     (page) => { page.click("Make London reference"); page.click("Make Toronto reference"); },
-    (page) => { page.change("meeting-hours-start", "08:00"); page.change("meeting-hours-start", "09:00"); },
-    (page) => { page.change("meeting-hours-end", "18:00"); page.change("meeting-hours-end", "17:00"); },
     (page) => { page.add("paris"); page.click("Remove Paris"); },
   ]) {
     const page = pageHarness(); page.change("meeting-date", "2027-03-27");
@@ -236,8 +246,8 @@ test("candidate revisions reject retained radios after inputs change away and ba
     assert.deepEqual(Array.from(page.state().citySlugs), Array.from(oldState.citySlugs));
     assert.equal(page.state().referenceCitySlug, oldState.referenceCitySlug);
     assert.equal(page.state().referenceDate, oldState.referenceDate);
-    assert.equal(page.state().preferredWindow.start, oldState.preferredWindow.start);
-    assert.equal(page.state().preferredWindow.end, oldState.preferredWindow.end);
+    assert.equal(page.state().cityPreferences.toronto.start, oldState.cityPreferences.toronto.start);
+    assert.equal(page.state().cityPreferences.toronto.end, oldState.cityPreferences.toronto.end);
     assert.equal(page.state().selectedStartEpochMilliseconds, null);
     const current = page.state();
     oldRadio.props.onChange(); page.render();
@@ -290,7 +300,7 @@ test("unrelated UI actions and unchanged inputs preserve candidate revision", ()
   page.click("Hide alternatives"); page.click("Show alternatives");
   page.nodes("select")[0].props.onChange({ target: { value: "paris" } }); page.render();
   page.change("meeting-date", "2027-03-27");
-  page.change("meeting-hours-start", "09:00"); page.change("meeting-hours-end", "17:00");
+  page.change("meeting-hours-toronto-start", "09:00"); page.change("meeting-hours-toronto-end", "17:00");
   assert.equal(page.state().planRevision, revision);
   assert.equal(page.state().selectedStartEpochMilliseconds, radio.props.value);
   radio.props.onChange(); page.render();
@@ -365,10 +375,10 @@ test("no-overlap alternatives identify cities outside preferred hours", () => {
 
 test("validation associates errors with native fields and removes stale summary", () => {
   const page = pageHarness(); page.change("meeting-date", "2027-03-27"); page.select();
-  page.change("meeting-hours-start", "22:00"); page.change("meeting-hours-end", "02:00");
-  assert.match(page.text(), /Overnight hours are not supported yet/);
-  assert.equal(page.input("meeting-hours-end").props["aria-invalid"], true);
-  assert.match(page.input("meeting-hours-end").props["aria-describedby"], /meeting-error/);
+  page.change("meeting-hours-toronto-start", "22:00"); page.change("meeting-hours-toronto-end", "02:00");
+  assert.match(page.text(), /Choose a closing time later than the opening time\. Overnight hours are not supported\./);
+  assert.equal(page.input("meeting-hours-toronto-end").props["aria-invalid"], true);
+  assert.match(page.input("meeting-hours-toronto-end").props["aria-describedby"], /meeting-hours-error-toronto/);
   assert.equal(page.nodes("p").filter((node) => node.props.role === "alert").length, 1);
   assert.doesNotMatch(page.text(), /Selected meeting ·/);
   page.change("meeting-date", "2009-11-01");
@@ -377,7 +387,7 @@ test("validation associates errors with native fields and removes stale summary"
 
 test("selected interval changing offset shows both exact-instant timezone labels", () => {
   const page = pageHarness(); page.change("meeting-date", "2027-03-14");
-  page.change("meeting-hours-start", "01:00"); page.change("meeting-hours-end", "03:30");
+  page.change("meeting-hours-toronto-start", "01:00"); page.change("meeting-hours-toronto-end", "03:30");
   page.click("Show alternatives");
   const radio = page.nodes("input").find((node) => node.props.type === "radio" &&
     Number(node.props.value) === Date.parse("2027-03-14T06:30Z"));
@@ -546,11 +556,9 @@ test("click-time recheck rejects expiry and invalid current time without waiting
   page.setNow(NaN); assert.equal(page.calendarButton().props.disabled, true);
 });
 
-test("every planner edit invalidates retained export handlers, including reference removal", () => {
+test("candidate-defining edits invalidate retained export handlers, including reference removal", () => {
   for (const edit of [
     (page) => page.change("meeting-date", "2027-03-28"),
-    (page) => page.change("meeting-hours-start", "08:00"),
-    (page) => page.change("meeting-hours-end", "18:00"),
     (page) => page.click("Make London reference"),
     (page) => page.add("berlin"),
     (page) => page.click("Remove Paris"),
@@ -570,8 +578,6 @@ test("change-away-and-back cannot revive the old export identity even after rese
   for (const roundTrip of [
     (page) => { page.change("meeting-date", "2027-03-28"); page.change("meeting-date", "2027-03-27"); },
     (page) => { page.click("Make London reference"); page.click("Make Toronto reference"); },
-    (page) => { page.change("meeting-hours-start", "08:00"); page.change("meeting-hours-start", "09:00"); },
-    (page) => { page.change("meeting-hours-end", "18:00"); page.change("meeting-hours-end", "17:00"); },
     (page) => { page.add("paris"); page.click("Remove Paris"); },
   ]) {
     const page = pageHarness(); page.change("meeting-date", "2027-03-27"); page.select();
@@ -601,7 +607,7 @@ test("selected alternatives export despite no common overlap and pending dropdow
   const handler = page.calendarHandler(), revision = page.state().planRevision;
   page.nodes("select")[0].props.onChange({ target: { value: "paris" } }); page.render();
   page.click("Hide alternatives"); page.click("Show alternatives");
-  page.change("meeting-date", "2027-03-27"); page.change("meeting-hours-start", "09:00");
+  page.change("meeting-date", "2027-03-27"); page.change("meeting-hours-toronto-start", "09:00");
   assert.equal(page.state().planRevision, revision);
   handler(); assert.equal(page.downloads.length, 1);
   assert.match(page.downloads[0].ics.replace(/\r\n[ \t]/g, ""), /Tokyo:/);
@@ -726,7 +732,7 @@ test("invalid selected epoch keeps inputs and clears its notice on edit or fresh
   page.select();
   assert.doesNotMatch(page.text(), /linked meeting time could not be restored/);
   const edited = pageHarness({ search: `${sharedSearch}&start=bad` });
-  edited.change("meeting-hours-end", "18:00");
+  edited.change("meeting-hours-toronto-end", "18:00");
   assert.doesNotMatch(edited.text(), /linked meeting time could not be restored/);
 });
 
@@ -745,4 +751,160 @@ test("sharing actions wrap, stack below 600px and retain the existing native foc
   assert.equal(declarations(".meeting-selected-actions")["flex-wrap"], "wrap");
   assert.equal(declarations(".meeting-selected-actions", true)["flex-direction"], "column");
   assert.equal(declarations(".meeting-share-action button", true).width, "100%");
+});
+
+test("per-city defaults, pending membership, reference preservation and remove/re-add resets", () => {
+  const page = pageHarness();
+  assert.equal(Object.hasOwn(page.state(), "preferredWindow"), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(page.state().cityPreferences)), {
+    toronto: { start: "09:00", end: "17:00" }, london: { start: "09:00", end: "17:00" },
+  });
+  assert.notEqual(page.state().cityPreferences.toronto, page.state().cityPreferences.london);
+  page.change("meeting-hours-toronto-start", "08:00");
+  page.change("meeting-hours-london-end", "18:00");
+  const before = page.state();
+  page.nodes("select")[0].props.onChange({ target: { value: "paris" } }); page.render();
+  assert.equal(page.state(), before);
+  assert.equal(Object.hasOwn(page.state().cityPreferences, "paris"), false);
+  page.click("Add city");
+  assert.equal(page.input("meeting-hours-paris-start").props.value, "09:00");
+  assert.equal(page.focusedId(), "meeting-hours-paris-start");
+  assert.equal(page.input("meeting-hours-toronto-start").props.value, "08:00");
+  assert.equal(page.input("meeting-hours-london-end").props.value, "18:00");
+  page.change("meeting-hours-paris-start", "10:00");
+  page.change("meeting-date", "2027-03-27");
+  const preferences = page.state().cityPreferences;
+  page.click("Make Paris reference");
+  assert.equal(page.state().cityPreferences, preferences);
+  assert.equal(page.state().referenceDate, "2027-03-27");
+  const stale = page.input("meeting-hours-paris-start").props.onChange;
+  page.click("Remove Paris");
+  assert.equal(Object.hasOwn(page.state().cityPreferences, "paris"), false);
+  assert.equal(page.focusedId(), "meeting-date");
+  page.add("paris");
+  const reset = page.state();
+  stale({ target: { value: "11:00" } }); page.render();
+  assert.equal(page.state(), reset);
+  assert.equal(page.input("meeting-hours-paris-start").props.value, "09:00");
+  page.add("montreal"); page.add("new-york");
+  assert.equal(page.focusedId(), "meeting-hours-new-york-start");
+  assert.equal(page.nodes("select")[0].props.disabled, true);
+  assert.deepEqual(Object.keys(page.state().cityPreferences).sort(), Array.from(page.state().citySlugs).sort());
+});
+
+test("rapid per-city edits merge while the exact selected meeting updates from five fits to four", () => {
+  const page = pageHarness(); page.add("montreal"); page.add("new-york"); page.add("paris");
+  page.change("meeting-date", "2027-03-27");
+  const selected = page.select().props.value;
+  const oldOtherRadio = page.nodes("input").filter((node) => node.props.type === "radio")[1];
+  assert.match(page.text(), /5 of 5 cities within their preferred hours/);
+  const opening = page.input("meeting-hours-london-start").props.onChange;
+  const closing = page.input("meeting-hours-london-end").props.onChange;
+  const toronto = page.input("meeting-hours-toronto-start").props.onChange;
+  const revision = page.state().planRevision;
+  opening({ target: { value: "14:00" } }); closing({ target: { value: "18:00" } }); toronto({ target: { value: "08:00" } }); page.render();
+  assert.equal(page.state().planRevision, revision + 3);
+  assert.equal(page.state().selectedStartEpochMilliseconds, selected);
+  assert.match(page.text(), /4 of 5 cities within their preferred hours/);
+  assert.match(page.text(), /This selected meeting is outside preferred hours for: London\./);
+  assert.equal(page.input("meeting-hours-london-start").props.value, "14:00");
+  assert.equal(page.input("meeting-hours-london-end").props.value, "18:00");
+  oldOtherRadio.props.onChange(); page.render();
+  assert.equal(page.state().selectedStartEpochMilliseconds, selected);
+  const current = page.state();
+  page.change("meeting-hours-london-start", "14:00");
+  assert.equal(page.state(), current);
+  page.change("meeting-hours-london-start", "09:00");
+  oldOtherRadio.props.onChange(); page.render();
+  assert.equal(page.state().selectedStartEpochMilliseconds, selected);
+  assert.match(page.text(), /5 of 5 cities within their preferred hours/);
+});
+
+test("invalid city drafts show associated errors and suspend selection until valid repair", () => {
+  const page = pageHarness(); page.change("meeting-date", "2027-03-27");
+  const epoch = page.select().props.value;
+  const retainedDownload = page.calendarHandler();
+  page.change("meeting-hours-london-start", "");
+  assert.equal(page.input("meeting-hours-london-start").props.value, "");
+  assert.equal(page.input("meeting-hours-london-start").props["aria-invalid"], true);
+  assert.match(page.input("meeting-hours-london-start").props["aria-describedby"], /meeting-hours-error-london/);
+  assert.ok(page.nodes("p").some((node) => node.props.id === "meeting-hours-error-london" && node.props.role === "alert"));
+  assert.equal(page.button("Copy plan link"), undefined);
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+  assert.equal(page.state().selectedStartEpochMilliseconds, epoch);
+  assert.doesNotMatch(page.text(), /Selected meeting|cities within their preferred hours/);
+  assert.equal(page.nodes("input").filter((node) => node.props.type === "radio").length, 0);
+  assert.equal(page.calendarButton(), undefined);
+  retainedDownload();
+  assert.equal(page.downloads.length, 0);
+  page.change("meeting-hours-london-start", "09:00");
+  assert.equal(page.state().selectedStartEpochMilliseconds, epoch);
+  assert.match(page.text(), /Selected meeting/);
+  assert.ok(page.calendarButton());
+  assert.ok(page.button("Copy plan link"));
+});
+
+test("city controls have unique visible city labels, minute inputs and mobile stacking", async () => {
+  const page = pageHarness(); page.add("montreal"); page.add("paris"); page.add("tokyo");
+  const ids = page.nodes("input").map((node) => node.props.id).filter(Boolean);
+  assert.equal(ids.length, new Set(ids).size);
+  assert.equal(page.nodes("input").filter((node) => node.props.type === "time").length, 10);
+  assert.equal(page.nodes("table").length, 0);
+  for (const [slug, name] of [["toronto", "Toronto"], ["london", "London"], ["montreal", "Montreal"], ["paris", "Paris"], ["tokyo", "Tokyo"]]) {
+    for (const [field, label] of [["start", "opening"], ["end", "closing"]]) {
+      const id = `meeting-hours-${slug}-${field}`;
+      assert.equal(page.input(id).props.type, "time");
+      assert.equal(page.input(id).props.step, "60");
+      assert.ok(page.nodes("label").some((node) => node.props.htmlFor === id && text(node) === `Preferred ${label} time in ${name}`));
+      assert.match(page.input(id).props["aria-describedby"], /meeting-hours-help/);
+    }
+  }
+  const css = await readFile(new URL("../src/App.css", import.meta.url), "utf8");
+  assert.match(css, /\.meeting-controls \{[^}]*minmax\(0, 1fr\)/);
+  assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.meeting-controls \{ grid-template-columns: 1fr; \}/);
+  assert.match(page.text(), /These are preferences, not calendar availability/);
+});
+
+test("retained calendar handler exports the same event after preference-only classification changes", () => {
+  const page = pageHarness(); page.change("meeting-date", "2027-03-27");
+  const epoch = page.select().props.value;
+  const retained = page.calendarHandler(); retained();
+  const before = page.downloads[0];
+  page.change("meeting-hours-london-start", "14:00");
+  assert.equal(page.state().selectedStartEpochMilliseconds, epoch);
+  assert.match(page.text(), /outside preferred hours for: London/);
+  retained();
+  assert.equal(page.downloads.length, 2);
+  assert.deepEqual(page.downloads[1], before);
+  assert.doesNotMatch(before.ics, /preferred|hours=/);
+});
+
+test("v1 and v2 manual planner page views remain canonical, query-free and deduplicated", async () => {
+  const read = (file) => readFile(new URL(`../${file}`, import.meta.url), "utf8");
+  const [site, metadata, analytics, component] = await Promise.all([
+    read("src/config/site.js"), read("src/utils/routeMetadata.js"), read("src/utils/analytics.js"), read("src/components/Analytics.jsx"),
+  ]);
+  const effects = [];
+  const context = vm.createContext({ URL, Date, window: {}, youHoraLogo: "test-logo",
+    useLocation: () => context.location,
+    useConsent: () => ({ analyticsConsent: "granted" }),
+    useEffect(setup, deps) { assert.deepEqual(Array.from(deps), ["granted", "/meeting-planner"]); effects.push(setup); },
+  });
+  const executable = (value) => withoutImports(value).replaceAll("export const", "const")
+    .replaceAll("export async function", "async function").replaceAll("export function", "function");
+  vm.runInContext(executable(site), context);
+  vm.runInContext(executable(metadata), context);
+  vm.runInContext(executable(analytics).replaceAll("import.meta.env.PROD", "true"), context);
+  context.setAnalyticsConsent(true);
+  context.loadAnalytics = async () => true;
+  vm.runInContext(executable(component).replace("export default function", "function"), context);
+  for (const search of [sharedSearch, "?v=2&hours=toronto%3A08%3A00-16%3A00&date=2027-03-27&start=1806152400000", "?v=2&hours=private"]) {
+    context.location = { pathname: "/meeting-planner", search, hash: "#private" };
+    context.Analytics(); effects.pop()(); await Promise.resolve(); await Promise.resolve();
+  }
+  const views = Array.from(context.window.dataLayer, (args) => Array.from(args)).filter((args) => args[1] === "page_view");
+  assert.equal(views.length, 1);
+  assert.equal(views[0][2].page_path, "/meeting-planner");
+  assert.equal(views[0][2].page_location, "https://www.youhora.com/meeting-planner");
+  assert.equal(context.resolveRouteMetadata("/meeting-planner").canonicalPath, "/meeting-planner");
 });

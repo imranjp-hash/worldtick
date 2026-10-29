@@ -324,3 +324,146 @@ test("output is independent of host timezone and implicit clock", () => {
     assert.deepEqual(JSON.parse(child.stdout), expected);
   }
 });
+
+const cityWindows = (slugs, start = "09:00", end = "17:00") => Object.fromEntries(slugs.map((slug) => [slug, { start, end }]));
+
+test("independent two- and five-city windows classify exact intervals without changing the grid", () => {
+  for (const citySlugs of [["toronto", "london"], ["toronto", "montreal", "new-york", "london", "paris"]]) {
+    const legacy = plan({ citySlugs });
+    const cityPreferences = cityWindows(citySlugs, "08:15", "18:45");
+    cityPreferences.toronto = { start: "08:00", end: "16:00" };
+    cityPreferences.london = { start: "09:30", end: "17:30" };
+    const inputs = { ...base, citySlugs, cityPreferences };
+    const before = structuredClone(inputs);
+    const result = generateMeetingPlan(inputs);
+    assert.equal(result.status, "success");
+    assert.deepEqual(result.referenceDay, legacy.referenceDay);
+    assert.deepEqual(result.candidates.map((c) => [c.startEpochMilliseconds, c.endEpochMilliseconds]),
+      legacy.candidates.map((c) => [c.startEpochMilliseconds, c.endEpochMilliseconds]));
+    assert.deepEqual(inputs, before);
+    assert.deepEqual(generateMeetingPlan(inputs), result);
+    for (const candidate of result.candidates) {
+      assert.deepEqual(candidate.locations.map((row) => row.citySlug), citySlugs);
+      assert.equal(candidate.withinPreferredCount, candidate.locations.filter((row) => row.isWithinPreferredHours).length);
+      assert.equal(candidate.allWithinPreferredHours, candidate.withinPreferredCount === citySlugs.length);
+    }
+    for (let i = 1; i < result.alternatives.length; i++) {
+      const a = result.alternatives[i - 1], b = result.alternatives[i];
+      assert.ok(a.withinPreferredCount > b.withinPreferredCount || a.withinPreferredCount === b.withinPreferredCount && a.startEpochMilliseconds < b.startEpochMilliseconds);
+    }
+    assert.deepEqual(result.preferredCandidates.map((c) => c.startEpochMilliseconds),
+      [...result.preferredCandidates].sort((a, b) => a.startEpochMilliseconds - b.startEpochMilliseconds).map((c) => c.startEpochMilliseconds));
+  }
+});
+
+test("same-zone cities retain independent windows and all, one, multiple and zero fits", () => {
+  const citySlugs = ["toronto", "montreal", "new-york"];
+  const result = plan({ citySlugs, cityPreferences: {
+    toronto: { start: "08:00", end: "16:00" }, montreal: { start: "10:00", end: "18:00" }, "new-york": { start: "09:00", end: "17:00" },
+  } });
+  for (const [iso, count] of [["2027-03-27T12:00Z", 1], ["2027-03-27T13:00Z", 2], ["2027-03-27T14:00Z", 3], ["2027-03-27T04:00Z", 0]]) {
+    assert.equal(at(result, iso).withinPreferredCount, count);
+    assert.equal(at(result, iso).locations.length, 3);
+  }
+  assert.deepEqual(at(result, "2027-03-27T13:00Z").locations.map((row) => row.isWithinPreferredHours), [true, false, true]);
+  const five = plan({ citySlugs: [...citySlugs, "london", "paris"], cityPreferences: {
+    ...cityWindows(citySlugs), london: { start: "13:00", end: "18:00" }, paris: { start: "14:00", end: "18:00" },
+  } });
+  assert.equal(at(five, "2027-03-27T14:00Z").withinPreferredCount, 5);
+});
+
+test("each city independently preserves opening, closing and fractional-offset occupancy", () => {
+  const result = plan({ citySlugs: ["toronto", "montreal"], cityPreferences: {
+    toronto: { start: "09:00", end: "17:00" }, montreal: { start: "08:00", end: "18:00" },
+  } });
+  for (const [iso, inside] of [["2027-03-27T12:30Z", false], ["2027-03-27T13:00Z", true], ["2027-03-27T20:30Z", true], ["2027-03-27T21:00Z", false]]) {
+    assert.equal(location(at(result, iso), "toronto").isWithinPreferredHours, inside);
+    assert.equal(location(at(result, iso), "montreal").isWithinPreferredHours, true);
+  }
+  const fractional = plan({ citySlugs: ["toronto", "kathmandu"], cityPreferences: {
+    toronto: { start: "00:00", end: "23:59" }, kathmandu: { start: "16:45", end: "17:15" },
+  } });
+  const exact = at(fractional, "2027-03-27T11:00Z");
+  assert.equal(location(exact, "kathmandu").start.time, "16:45:00");
+  assert.equal(location(exact, "kathmandu").isWithinPreferredHours, true);
+  const narrow = plan({ cityPreferences: cityWindows(base.citySlugs, "09:00", "09:01") });
+  assert.equal(narrow.status, "success");
+  assert.equal(narrow.preferredCandidates.length, 0);
+  assert.equal(narrow.candidates.length, 48);
+});
+
+test("city preferences preserve full spring/fallback intervals and distinguish total repeated-hour fit", () => {
+  const fall = plan({ referenceDate: "2027-11-07", cityPreferences: {
+    toronto: { start: "01:00", end: "01:30" }, london: { start: "05:00", end: "05:30" },
+  } });
+  const occurrences = [1825563600000, 1825567200000].map((epoch) => fall.candidates.find((c) => c.startEpochMilliseconds === epoch));
+  assert.equal(fall.candidates.length, 50);
+  assert.deepEqual(occurrences.map((c) => location(c, "toronto").isWithinPreferredHours), [true, true]);
+  assert.deepEqual(occurrences.map((c) => c.withinPreferredCount), [2, 1]);
+  assert.deepEqual(occurrences.map((c) => location(c, "toronto").start.offset), ["-04:00", "-05:00"]);
+  for (const [date, iso, window, expected, referenceCitySlug] of [
+    ["2027-03-14", "2027-03-14T06:45Z", { start: "01:30", end: "03:30" }, true, "kathmandu"],
+    ["2027-03-14", "2027-03-14T06:30Z", { start: "01:30", end: "02:00" }, true, "toronto"],
+    ["2027-11-07", "2027-11-07T05:45Z", { start: "01:00", end: "01:50" }, false, "kathmandu"],
+  ]) {
+    const result = plan({ citySlugs: ["kathmandu", "toronto"], referenceCitySlug, referenceDate: date,
+      cityPreferences: { kathmandu: { start: "09:00", end: "17:00" }, toronto: window } });
+    assert.equal(location(at(result, iso), "toronto").isWithinPreferredHours, expected);
+  }
+  assert.equal(plan({ referenceDate: "2027-03-14", cityPreferences: cityWindows(base.citySlugs) }).candidates.length, 46);
+});
+
+test("independent Lord Howe and date-line windows use fixture catalog projections", async () => {
+  const generate = await plannerWithFixtures([{ slug: "lord-howe", timezone: "Australia/Lord_Howe" },
+    { slug: "west", timezone: "Etc/GMT+12" }, { slug: "east", timezone: "Pacific/Kiritimati" }]);
+  for (const [referenceDate, count] of [["2027-04-04", 49], ["2027-10-03", 47]]) {
+    assert.equal(generate({ citySlugs: ["lord-howe", "sydney"], referenceCitySlug: "lord-howe", referenceDate,
+      cityPreferences: { "lord-howe": { start: "01:30", end: "03:00" }, sydney: { start: "08:00", end: "16:00" } } }).candidates.length, count);
+  }
+  for (const end of ["01:50", "02:00"]) {
+    const result = generate({ citySlugs: ["kathmandu", "lord-howe"], referenceCitySlug: "kathmandu", referenceDate: "2027-04-03",
+      cityPreferences: { kathmandu: { start: "09:00", end: "17:00" }, "lord-howe": { start: "01:30", end } } });
+    assert.equal(location(at(result, "2027-04-03T14:45Z"), "lord-howe").isWithinPreferredHours, end === "02:00");
+  }
+  const extreme = generate({ citySlugs: ["west", "east"], referenceCitySlug: "west", referenceDate: "2027-01-01",
+    cityPreferences: { west: { start: "23:30", end: "23:59" }, east: { start: "01:30", end: "02:00" } } });
+  const candidate = at(extreme, "2027-01-02T11:30Z");
+  assert.equal(location(candidate, "east").dayDifference, 2);
+  assert.deepEqual(Array.from(candidate.locations, (row) => row.isWithinPreferredHours), [false, true]);
+});
+
+test("canonical preference maps reject missing, extra, inherited and malformed windows without defaulting", () => {
+  const defaults = cityWindows(base.citySlugs);
+  const inherited = Object.create({ london: defaults.london }); inherited.toronto = defaults.toronto;
+  const symbolExtra = { ...defaults, [Symbol("extra")]: defaults.toronto };
+  for (const cityPreferences of [undefined, null, [], {}, { toronto: defaults.toronto }, { ...defaults, paris: defaults.toronto },
+    { toronto: defaults.toronto, unknown: defaults.london }, inherited, symbolExtra]) {
+    assert.equal(plan({ cityPreferences }).error.code, "INVALID_PREFERENCES");
+  }
+  for (const value of [null, [], {}, Object.create(defaults.toronto), { start: "09:00" },
+    ...["9:00", "24:00", "09:00:00", " 09:00", "09:00\n", "09:00\r", "09:60"].map((start) => ({ start, end: "17:00" }))]) {
+    assert.equal(plan({ cityPreferences: { ...defaults, toronto: value } }).error.code, "INVALID_TIME");
+  }
+  for (const [start, end, code] of [["09:00", "09:00", "EQUAL_HOURS"], ["22:00", "06:00", "OVERNIGHT_UNSUPPORTED"]]) {
+    const result = plan({ cityPreferences: { ...defaults, london: { start, end } } });
+    assert.equal(result.error.code, code);
+    assert.equal(result.error.field, "cityPreferences.london.end");
+  }
+  for (const preferredWindow of [undefined, { start: "09:00", end: "17:00" }]) {
+    assert.equal(plan({ cityPreferences: defaults, preferredWindow }).error.code, "AMBIGUOUS_PREFERENCES");
+  }
+  assert.deepEqual(plan({ cityPreferences: defaults }), plan());
+  Object.values(defaults).forEach(Object.freeze); Object.freeze(defaults);
+  assert.equal(plan({ cityPreferences: defaults }).status, "success");
+});
+
+test("canonical city preferences are host-timezone and clock independent", () => {
+  const moduleUrl = new URL("../src/utils/meetingPlanner.js", import.meta.url).href;
+  const inputs = { ...base, cityPreferences: { toronto: { start: "08:00", end: "16:00" }, london: { start: "09:30", end: "17:30" } } };
+  const script = `const {generateMeetingPlan}=await import(${JSON.stringify(moduleUrl)});Date.now=()=>{throw Error('Implicit clock')};process.stdout.write(JSON.stringify(generateMeetingPlan(${JSON.stringify(inputs)})));`;
+  for (const TZ of ["UTC", "America/Los_Angeles", "Asia/Kathmandu"]) {
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { env: { ...process.env, TZ }, encoding: "utf8" });
+    assert.equal(child.status, 0, child.stderr);
+    assert.deepEqual(JSON.parse(child.stdout), generateMeetingPlan(inputs));
+  }
+});

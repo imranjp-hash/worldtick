@@ -166,7 +166,7 @@ test("real React clock updates bypass the planner memo body, engine and city for
 });
 
 const inputsA = { citySlugs: ["toronto", "london"], referenceCitySlug: "toronto", referenceDate: "2027-03-27",
-  preferredWindow: { start: "09:00", end: "17:00" } };
+  cityPreferences: { toronto: { start: "09:00", end: "17:00" }, london: { start: "09:00", end: "17:00" } } };
 const pathA = plannerUrl.buildCanonicalMeetingPlannerPath(inputsA);
 const pathB = plannerUrl.buildCanonicalMeetingPlannerPath({ ...inputsA, referenceDate: "2027-03-28" });
 const selectedA = plannerUrl.buildCanonicalMeetingPlannerPath(inputsA, 1806152400000);
@@ -187,8 +187,11 @@ async function navigationHarness(t, initial = "/meeting-planner", options = {}) 
   const createElement = (type, props, ...children) => {
     if (type === "h1") for (const values of Object.values(captured)) values.clear();
     if (props?.id) captured.inputs.set(props.id, props);
-    if (type === "button") captured.buttons.set(children.flat(Infinity)
-      .filter((child) => typeof child === "string" || typeof child === "number").join(""), props);
+    if (type === "button") {
+      captured.buttons.set(children.flat(Infinity)
+        .filter((child) => typeof child === "string" || typeof child === "number").join(""), props);
+      if (props?.["aria-label"]) captured.buttons.set(props["aria-label"], props);
+    }
     if (props?.type === "radio") captured.radios.set(props.value, props);
     return React.createElement(type, props, ...children);
   };
@@ -201,9 +204,20 @@ async function navigationHarness(t, initial = "/meeting-planner", options = {}) 
   const sharing = await loadComponent("src/hooks/usePlannerSharing.js", {
     ...common, ...plannerUrl, getSiteUrl: (path) => `https://www.youhora.com${path}`,
   });
+  // Observe the public hook input after commit; keep production React state/effects.
+  let committedPlanner = null;
   const page = await loadComponent("src/pages/MeetingPlannerPage.jsx", {
     ...common, ...router, ...planner, ...dateTime, ...plannerUrl, cities,
-    PlannerCalendarDownloadControl: control, usePlannerSharing: sharing,
+    generateMeetingPlan: options.generateMeetingPlan ?? planner.generateMeetingPlan,
+    PlannerCalendarDownloadControl: control,
+    usePlannerSharing(state) {
+      const actions = sharing(state);
+      React.useLayoutEffect(() => {
+        committedPlanner = state;
+        return () => { if (committedPlanner === state) committedPlanner = null; };
+      }, [state]);
+      return actions;
+    },
     useNavigate() {
       const navigate = router.useNavigate();
       return options.onRecoveryNavigate ? (...args) => {
@@ -234,6 +248,7 @@ async function navigationHarness(t, initial = "/meeting-planner", options = {}) 
   });
   return {
     dom, writes, navigator, captured,
+    state: () => committedPlanner,
     text: () => renderHost.textContent,
     location: () => location,
     input: (id) => captured.inputs.get(id),
@@ -266,9 +281,9 @@ test("real router default to A to B Back Forward and refresh replace the local d
   await page.go(pathB); assert.equal(page.input("meeting-date").value, "2027-03-28");
   await page.go(-1); assert.equal(page.input("meeting-date").value, "2027-03-27");
   await page.go(1); assert.equal(page.input("meeting-date").value, "2027-03-28");
-  await page.change("meeting-hours-end", "18:30");
+  await page.change("meeting-hours-toronto-end", "18:30");
   await page.refresh();
-  assert.equal(page.input("meeting-hours-end").value, "17:00");
+  assert.equal(page.input("meeting-hours-toronto-end").value, "17:00");
   await page.go(pathA); await page.go(pathB); await page.go(pathA);
   assert.equal(page.input("meeting-date").value, "2027-03-27");
 });
@@ -314,12 +329,12 @@ test("real router preserves reordered cities, reference and hours and clears sta
   for (const inputs of [
     { ...inputsA, citySlugs: ["london", "toronto"] },
     { ...inputsA, referenceCitySlug: "london" },
-    { ...inputsA, preferredWindow: { start: "08:15", end: "18:45" } },
+    { ...inputsA, cityPreferences: { ...inputsA.cityPreferences, toronto: { start: "08:15", end: "18:45" } } },
   ]) {
     await page.go(plannerUrl.buildCanonicalMeetingPlannerPath(inputs));
     assert.equal(page.input("meeting-date").value, inputs.referenceDate);
-    assert.equal(page.input("meeting-hours-start").value, inputs.preferredWindow.start);
-    assert.equal(page.input("meeting-hours-end").value, inputs.preferredWindow.end);
+    assert.equal(page.input("meeting-hours-toronto-start").value, inputs.cityPreferences.toronto.start);
+    assert.equal(page.input("meeting-hours-toronto-end").value, inputs.cityPreferences.toronto.end);
     assert.ok(page.text().includes(`Meeting date in ${inputs.referenceCitySlug === "london" ? "London" : "Toronto"}`));
     const list = page.text().slice(page.text().indexOf("Meeting cities"), page.text().indexOf("Add a city"));
     assert.ok(list.indexOf(inputs.citySlugs[0] === "london" ? "London" : "Toronto")
@@ -333,7 +348,9 @@ test("real router preserves reordered cities, reference and hours and clears sta
 });
 
 test("real router repeated 1 AM URLs restore distinct EDT/EST occurrences on Back and Forward", async (t) => {
-  const fall = { ...inputsA, referenceDate: "2027-11-07", preferredWindow: { start: "01:00", end: "07:00" } };
+  const fall = { ...inputsA, referenceDate: "2027-11-07", cityPreferences: {
+    toronto: { start: "01:00", end: "07:00" }, london: { start: "01:00", end: "07:00" },
+  } };
   const first = plannerUrl.buildCanonicalMeetingPlannerPath(fall, 1825563600000);
   const second = plannerUrl.buildCanonicalMeetingPlannerPath(fall, 1825567200000);
   const page = await navigationHarness(t, first);
@@ -358,18 +375,21 @@ test("real React plan copying excludes selection and retained handlers read late
   await page.invoke(retainedPlan); assert.equal(page.writes.at(-1), `https://www.youhora.com${pathA}`);
   await page.select(1806154200000); await page.invoke(retainedSelected);
   assert.equal(page.writes.at(-1), `https://www.youhora.com${selectedB}`);
-  await page.change("meeting-hours-start", "08:15");
+  await page.change("meeting-hours-toronto-start", "08:15");
   const count = page.writes.length;
-  await page.invoke(retainedSelected); assert.equal(page.writes.length, count);
+  const editedInputs = { ...inputsA, cityPreferences: { ...inputsA.cityPreferences, toronto: { start: "08:15", end: "17:00" } } };
+  await page.invoke(retainedSelected); assert.equal(page.writes.length, count + 1);
+  assert.equal(page.writes.at(-1), `https://www.youhora.com${plannerUrl.buildCanonicalMeetingPlannerPath(editedInputs, 1806154200000)}`);
   await page.invoke(retainedPlan);
-  assert.equal(page.writes.at(-1), `https://www.youhora.com${plannerUrl.buildCanonicalMeetingPlannerPath({ ...inputsA, preferredWindow: { start: "08:15", end: "17:00" } })}`);
+  assert.equal(page.writes.at(-1), `https://www.youhora.com${plannerUrl.buildCanonicalMeetingPlannerPath(editedInputs)}`);
   await page.change("meeting-date", ""); await page.invoke(retainedPlan);
-  assert.equal(page.writes.length, count + 1);
+  assert.equal(page.writes.length, count + 2);
   assert.match(page.location().search, /date=2027-03-27/);
 });
 
 test("real React copy targets ignore pending city/alternatives changes and past selection remains shareable", async (t) => {
-  const inputs = { ...inputsA, citySlugs: ["toronto", "london", "tokyo"] };
+  const inputs = { ...inputsA, citySlugs: ["toronto", "london", "tokyo"],
+    cityPreferences: { ...inputsA.cityPreferences, tokyo: { start: "09:00", end: "17:00" } } };
   const selected = plannerUrl.buildCanonicalMeetingPlannerPath(inputs, 1806152400000);
   const page = await navigationHarness(t, selected, { now: "2028-01-01T00:00Z" });
   assert.match(page.text(), /outside preferred hours for: Tokyo/);
@@ -408,7 +428,7 @@ test("real React clipboard rejection, missing API, thrown getter and retry have 
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } });
   await page.click("Copy plan link"); assert.match(page.text(), /Plan link copied/);
   assert.equal(page.dom.timers.size, 1);
-  await page.change("meeting-hours-end", "18:00");
+  await page.change("meeting-hours-toronto-end", "18:00");
   assert.doesNotMatch(page.text(), /copied|Copy failed/); assert.equal(page.dom.timers.size, 0);
 });
 
@@ -490,7 +510,7 @@ test("a queued old feedback timer cannot take ownership of a newer timer or surv
   const page = await navigationHarness(t, pathA);
   await page.click("Copy plan link");
   const queued = [...page.dom.timers.values()][0];
-  await page.change("meeting-hours-end", "18:00");
+  await page.change("meeting-hours-toronto-end", "18:00");
   await page.click("Copy plan link");
   assert.equal(page.dom.timers.size, 1);
   await React.act(async () => queued());
@@ -518,7 +538,7 @@ test("retained recovery after normal recovery cannot navigate or erase a committ
   assert.equal(page.location().search, "");
   assert.equal(page.location().hash, "");
   assert.equal(committedNodes(page).find((node) => node.getAttribute?.("id") === "meeting-date").value, "2028-02-29");
-  assert.match(page.text(), /Meeting candidates|All cities within preferred hours/);
+  assert.match(page.text(), /Meeting candidates|All cities within their preferred hours/);
 });
 
 test("retained recovery cannot erase a later committed shared URL or exact selected meeting", async (t) => {
@@ -600,4 +620,357 @@ test("retained recovery is inert after route unmount and does not request naviga
   assert.deepEqual(requests, []);
   assert.equal(page.location(), before);
   assert.equal(page.text(), "");
+});
+
+const v1Path = "/meeting-planner?v=1&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hoursStart=09%3A00&hoursEnd=17%3A00";
+
+test("real router v1 to independent v2 Back Forward and malformed return hydrate each visit atomically", async (t) => {
+  const inputs = { ...inputsA, cityPreferences: { toronto: { start: "08:00", end: "16:00" }, london: { start: "09:30", end: "17:30" } } };
+  const v2 = plannerUrl.buildCanonicalMeetingPlannerPath(inputs, 1806152400000);
+  const page = await navigationHarness(t, `${v1Path}&start=1806152400000`);
+  assert.equal(page.input("meeting-hours-london-start").value, "09:00");
+  assert.match(page.location().search, /v=1/);
+  await page.go(v2);
+  assert.equal(page.input("meeting-hours-toronto-start").value, "08:00");
+  assert.equal(page.input("meeting-hours-london-start").value, "09:30");
+  assert.ok(page.button("Copy selected meeting link"));
+  await page.go(-1);
+  assert.equal(page.input("meeting-hours-toronto-start").value, "09:00");
+  assert.equal(page.input("meeting-hours-london-start").value, "09:00");
+  await page.go(1);
+  assert.equal(page.input("meeting-hours-london-start").value, "09:30");
+  await page.go(plannerUrl.buildCanonicalMeetingPlannerPath(inputs));
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+  await page.go(v1Path);
+  await page.go("/meeting-planner?v=2&cities=toronto,london&reference=toronto&date=2027-03-27&hours=toronto:09:00-17:00");
+  assert.match(page.text(), /This shared plan link is incomplete or invalid/);
+  assert.equal(page.input("meeting-hours-toronto-start"), undefined);
+  await page.go(-1);
+  assert.equal(page.input("meeting-hours-london-end").value, "17:00");
+  assert.match(page.location().search, /v=1/);
+});
+
+test("real router one-window v2 history and city reordering retain slug ownership", async (t) => {
+  const changed = { ...inputsA, cityPreferences: { ...inputsA.cityPreferences, london: { start: "10:15", end: "18:45" } } };
+  const page = await navigationHarness(t, pathA);
+  const v2B = plannerUrl.buildCanonicalMeetingPlannerPath(changed);
+  await page.go(v2B);
+  assert.equal(page.input("meeting-hours-london-start").value, "10:15");
+  await page.change("meeting-hours-toronto-end", "16:00");
+  await page.go(-1);
+  assert.equal(page.input("meeting-hours-london-start").value, "09:00");
+  assert.equal(page.input("meeting-hours-toronto-end").value, "17:00");
+  await page.go(1);
+  assert.equal(page.input("meeting-hours-london-start").value, "10:15");
+  assert.equal(page.input("meeting-hours-toronto-end").value, "17:00");
+  await page.go(plannerUrl.buildCanonicalMeetingPlannerPath({ ...changed, citySlugs: ["london", "toronto"] }));
+  const list = page.text().slice(page.text().indexOf("Meeting cities"), page.text().indexOf("Add a city"));
+  assert.ok(list.indexOf("London") < list.indexOf("Toronto"));
+  assert.equal(page.input("meeting-hours-london-end").value, "18:45");
+  assert.equal(page.input("meeting-hours-toronto-end").value, "17:00");
+});
+
+test("real React v1 drafts never rewrite location, copy v2, and disappear on history or refresh", async (t) => {
+  const page = await navigationHarness(t, `${v1Path}&start=1806152400000`);
+  const location = page.location();
+  await page.click("Copy plan link");
+  assert.equal(page.writes.at(-1), `https://www.youhora.com${pathA}`);
+  const retained = page.input("meeting-hours-london-start").onChange;
+  await page.change("meeting-hours-london-start", "14:00");
+  assert.equal(page.location(), location);
+  assert.match(page.text(), /1 of 2 cities within their preferred hours/);
+  await page.click("Copy selected meeting link");
+  const copied = new URL(page.writes.at(-1));
+  assert.equal(copied.searchParams.get("v"), "2");
+  assert.equal(copied.searchParams.get("start"), "1806152400000");
+  assert.equal(copied.searchParams.get("hours"), "toronto:09:00-17:00,london:14:00-17:00");
+  await page.go(pathB); await page.go(-1);
+  await page.invoke(() => retained({ target: { value: "15:00" } }));
+  assert.equal(page.input("meeting-hours-london-start").value, "09:00");
+  await page.change("meeting-hours-london-end", "18:00"); await page.refresh();
+  assert.equal(page.input("meeting-hours-london-end").value, "17:00");
+  assert.match(page.location().search, /v=1/);
+  assert.equal(page.radio(1806152400000).checked, true);
+});
+
+test("real React preference edits preserve exact five-city selection, update fit, and scope old radios and feedback", async (t) => {
+  const citySlugs = ["toronto", "montreal", "new-york", "london", "paris"];
+  const inputs = { ...inputsA, citySlugs, cityPreferences: Object.fromEntries(citySlugs.map((slug) => [slug, { start: "09:00", end: "17:00" }])) };
+  const epoch = 1806152400000;
+  const page = await navigationHarness(t, plannerUrl.buildCanonicalMeetingPlannerPath(inputs, epoch));
+  const retainedCopy = page.button("Copy selected meeting link").onClick;
+  const oldRadio = page.radio(epoch + 1800000).onChange;
+  await page.click("Copy selected meeting link");
+  assert.match(page.text(), /5 of 5 cities within their preferred hours/);
+  const opening = page.input("meeting-hours-london-start").onChange;
+  const closing = page.input("meeting-hours-london-end").onChange;
+  const otherCity = page.input("meeting-hours-toronto-start").onChange;
+  await React.act(async () => {
+    opening({ target: { value: "14:00" } }); closing({ target: { value: "18:00" } }); otherCity({ target: { value: "08:00" } });
+  });
+  assert.match(page.text(), /4 of 5 cities within their preferred hours/);
+  assert.match(page.text(), /This selected meeting is outside preferred hours for: London\./);
+  assert.doesNotMatch(page.text(), /link copied/);
+  assert.equal(page.input("meeting-hours-london-end").value, "18:00");
+  await page.invoke(oldRadio);
+  await page.invoke(retainedCopy);
+  const copied = new URL(page.writes.at(-1));
+  assert.equal(copied.searchParams.get("start"), String(epoch));
+  assert.match(copied.searchParams.get("hours"), /london:14:00-18:00/);
+  assert.equal(page.radio(epoch), undefined, "a retained selection may sit outside the preferred radio list");
+  await page.change("meeting-hours-london-start", "09:00");
+  await page.invoke(oldRadio);
+  assert.equal(page.radio(epoch).checked, true);
+  assert.equal(page.radio(epoch + 1800000).checked, false);
+  await page.change("meeting-hours-london-start", "");
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+  assert.equal(page.button("Copy plan link"), undefined);
+  const count = page.writes.length; await page.invoke(retainedCopy);
+  assert.equal(page.writes.length, count);
+  await page.change("meeting-hours-london-start", "09:00");
+  assert.ok(page.button("Copy selected meeting link"));
+  assert.equal(page.radio(epoch).checked, true);
+});
+
+test("real React removed and re-added city callbacks stay inert and add focus survives the five-city limit", async (t) => {
+  const page = await navigationHarness(t, pathA);
+  for (const slug of ["paris", "montreal", "new-york"]) {
+    await page.change("meeting-add-city", slug); await page.click("Add city");
+    assert.equal(page.dom.document.activeElement.getAttribute("id"), `meeting-hours-${slug}-start`);
+  }
+  const retained = page.input("meeting-hours-paris-start").onChange;
+  await page.change("meeting-hours-paris-start", "10:00");
+  await page.click("Remove Toronto");
+  await page.change("meeting-add-city", "toronto"); await page.click("Add city");
+  await page.invoke(() => retained({ target: { value: "11:00" } }));
+  assert.equal(page.input("meeting-hours-paris-start").value, "10:00", "membership changes invalidate retained preference callbacks");
+  await page.click("Remove Paris");
+  await page.change("meeting-add-city", "paris"); await page.click("Add city");
+  await page.invoke(() => retained({ target: { value: "12:00" } }));
+  assert.equal(page.input("meeting-hours-paris-start").value, "09:00");
+});
+
+test("real React clears a retained epoch if regenerated membership fails and cannot revive it", async (t) => {
+  let removeMember = false;
+  const epoch = 1806152400000;
+  const page = await navigationHarness(t, selectedA, {
+    generateMeetingPlan(inputs) {
+      const result = planner.generateMeetingPlan(inputs);
+      return removeMember && result.status === "success"
+        ? { ...result, candidates: result.candidates.filter((candidate) => candidate.startEpochMilliseconds !== epoch) } : result;
+    },
+  });
+  assert.ok(page.button("Copy selected meeting link"));
+  removeMember = true;
+  await page.change("meeting-hours-london-end", "18:00");
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+  removeMember = false;
+  await page.change("meeting-hours-london-end", "17:00");
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+});
+
+const browserQaInputs = {
+  citySlugs: ["toronto", "london", "paris"], referenceCitySlug: "toronto", referenceDate: "2027-10-27",
+  cityPreferences: { toronto: { start: "08:00", end: "16:00" }, london: { start: "10:00", end: "18:00" },
+    paris: { start: "14:00", end: "17:00" } },
+};
+const browserQaEpoch = 1824638400000;
+const parisOpening = "meeting-hours-paris-start";
+
+function assertDormantPreference(page, errorField = "start") {
+  assert.equal(page.state().selectedStartEpochMilliseconds, browserQaEpoch);
+  assert.equal(page.state().selectedCandidate, null);
+  assert.equal(page.state().plan.status, "invalid");
+  assert.equal(page.input(`meeting-hours-paris-${errorField}`)["aria-invalid"], true);
+  assert.match(page.input(`meeting-hours-paris-${errorField}`)["aria-describedby"], /meeting-hours-error-paris/);
+  const error = committedNodes(page).find((node) => node.getAttribute?.("id") === "meeting-hours-error-paris");
+  assert.equal(error.getAttribute("role"), "alert");
+  assert.ok(error.textContent);
+  assert.doesNotMatch(page.text(), /Selected meeting|\d of 3 cities|Outside preferred hours|This selected meeting/);
+  assert.equal(page.captured.radios.size, 0);
+  assert.ok(!committedNodes(page).some((node) => node.getAttribute?.("aria-label") === "Meeting candidates"));
+  for (const label of ["Copy plan link", "Copy selected meeting link", "Download calendar event (.ics)"]) {
+    assert.equal(page.button(label), undefined);
+  }
+}
+
+function assertBrowserQaSelection(page, fit) {
+  const state = page.state();
+  assert.equal(state.selectedStartEpochMilliseconds, browserQaEpoch);
+  assert.equal(state.selectedCandidate, state.plan.candidates.find((candidate) => candidate.startEpochMilliseconds === browserQaEpoch));
+  assert.equal(state.selectedCandidate.endEpochMilliseconds, browserQaEpoch + 1800000);
+  const summary = committedNodes(page).find((node) => node.getAttribute?.("aria-labelledby") === "meeting-selected-title");
+  assert.ok(summary);
+  assert.match(summary.textContent, new RegExp(`${fit} of 3 cities within their preferred hours`));
+  const articles = committedNodes(page).filter((node) => node.nodeName === "ARTICLE");
+  for (const [index, city, time] of [[0, "Toronto", "8:00 AM–8:30 AM"], [1, "London", "1:00 PM–1:30 PM"], [2, "Paris", "2:00 PM–2:30 PM"]]) {
+    assert.ok(articles[index].textContent.startsWith(city));
+    assert.ok(articles[index].textContent.includes(time));
+  }
+  if (fit === 2) {
+    assert.match(summary.textContent, /This selected meeting is outside preferred hours for: Paris\./);
+    assert.deepEqual(Array.from(state.plan.preferredCandidates[0].locations, (location) => location.start.time),
+      ["09:00:00", "14:00:00", "15:00:00"]);
+    assert.equal(page.radio(browserQaEpoch), undefined, "selection is independent of the preferred radio list");
+  }
+}
+
+for (const [draft, errorField] of [["", "start"], ["17:00", "end"], ["18:00", "end"]]) {
+  test(`real React browser QA preference draft ${JSON.stringify(draft)} suspends and restores the exact current meeting`, async (t) => {
+    const downloads = [];
+    const page = await navigationHarness(t, plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs), {
+      downloadIcsFile: (payload) => downloads.push(payload),
+    });
+    await page.select(browserQaEpoch);
+    assertBrowserQaSelection(page, 3);
+    const before = page.state().selectedCandidate;
+    const revision = page.state().planRevision;
+    const location = page.location();
+    const retained = [page.button("Copy plan link").onClick, page.button("Copy selected meeting link").onClick,
+      page.button("Download calendar event (.ics)").onClick, page.radio(browserQaEpoch + 1800000).onChange];
+    await page.click("Download calendar event (.ics)");
+    await page.change(parisOpening, draft); // Separate act/commit: the invalid draft must really render.
+    assertDormantPreference(page, errorField);
+    assert.equal(page.state().planRevision, revision + 1);
+    for (const handler of retained) await page.invoke(handler);
+    assert.equal(page.writes.length, 0);
+    assert.equal(downloads.length, 1);
+    assertDormantPreference(page, errorField);
+
+    await page.change(parisOpening, "15:00");
+    assertBrowserQaSelection(page, 2);
+    assert.notEqual(page.state().selectedCandidate, before, "derive a new candidate; never reuse cached classification");
+    assert.equal(page.state().planRevision, revision + 2);
+    assert.equal(page.location(), location, "local drafts never rewrite history");
+    await page.invoke(retained[3]);
+    assert.equal(page.state().selectedStartEpochMilliseconds, browserQaEpoch);
+    await page.invoke(retained[2]);
+    assert.equal(downloads.length, 1, "unmounted calendar closure stays inert after repair");
+    for (const label of ["Copy plan link", "Copy selected meeting link"]) {
+      await page.click(label);
+      const copied = new URL(page.writes.at(-1));
+      assert.equal(copied.searchParams.get("hours"), "toronto:08:00-16:00,london:10:00-18:00,paris:15:00-17:00");
+      assert.equal(copied.searchParams.get("start"), label === "Copy plan link" ? null : String(browserQaEpoch));
+    }
+    await page.click("Download calendar event (.ics)");
+    assert.deepEqual(downloads[1], downloads[0], "preferences do not change ICS content or identity");
+    assert.match(downloads[1].ics, /DTSTART:20271027T120000Z/);
+    assert.match(downloads[1].ics, /DTEND:20271027T123000Z/);
+    await page.change(parisOpening, "14:00");
+    await page.invoke(retained[3]);
+    assert.equal(page.radio(browserQaEpoch).checked, true);
+    assert.equal(page.radio(browserQaEpoch + 1800000).checked, false, "change-away/back cannot revive an old radio");
+  });
+}
+
+for (const batched of [false, true]) {
+  test(`real React browser QA ${batched ? "batched invalid/final" : "atomic valid"} preference edit preserves selection`, async (t) => {
+    const page = await navigationHarness(t, plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs));
+    await page.select(browserQaEpoch);
+    assertBrowserQaSelection(page, 3);
+    if (batched) {
+      const change = page.input(parisOpening).onChange;
+      await React.act(async () => { change({ target: { value: "" } }); change({ target: { value: "15:00" } }); });
+    } else await page.change(parisOpening, "15:00");
+    assertBrowserQaSelection(page, 2);
+    assert.ok(page.button("Copy selected meeting link"));
+    assert.ok(page.button("Download calendar event (.ics)"));
+  });
+}
+
+test("real React closing-time preference drafts also suspend exact selection", async (t) => {
+  const page = await navigationHarness(t, plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs));
+  await page.select(browserQaEpoch);
+  for (const draft of ["", "14:00", "13:00"]) {
+    await page.change("meeting-hours-paris-end", draft);
+    assertDormantPreference(page, "end");
+    await page.change("meeting-hours-paris-end", "17:00");
+    assertBrowserQaSelection(page, 3);
+  }
+});
+
+for (const [name, mutate, reset] of [
+  ["date change", (page) => page.change("meeting-date", "2027-10-28"), (page) => page.change("meeting-date", "2027-10-27")],
+  ["reference change", (page) => page.click("Make London reference"), (page) => page.click("Make Toronto reference")],
+  ["city addition", async (page) => { await page.change("meeting-add-city", "montreal"); await page.click("Add city"); }, (page) => page.click("Remove Montreal")],
+  ["city removal", (page) => page.click("Remove London"), async (page) => { await page.change("meeting-add-city", "london"); await page.click("Add city"); }],
+  ["remove/re-add same slug", async (page) => {
+    await page.click("Remove Paris"); await page.change("meeting-add-city", "paris"); await page.click("Add city");
+  }, async () => {}],
+]) {
+  test(`real React dormant preference selection is permanently cleared by ${name}`, async (t) => {
+    const page = await navigationHarness(t, plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs));
+    await page.select(browserQaEpoch);
+    const oldRadio = page.radio(browserQaEpoch + 1800000).onChange;
+    await page.change(parisOpening, "");
+    assertDormantPreference(page);
+    await mutate(page);
+    assert.equal(page.state().selectedStartEpochMilliseconds, null);
+    await reset(page);
+    await page.change(parisOpening, "15:00");
+    await page.invoke(oldRadio);
+    assert.equal(page.state().plan.status, "success");
+    assert.equal(page.state().selectedStartEpochMilliseconds, null);
+    assert.equal(page.button("Copy selected meeting link"), undefined);
+    assert.equal(page.button("Download calendar event (.ics)"), undefined);
+  });
+}
+
+test("real React repaired preference draft clears permanently when successful candidate membership is lost", async (t) => {
+  let removeMember = false;
+  const page = await navigationHarness(t, plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs), {
+    generateMeetingPlan(inputs) {
+      const result = planner.generateMeetingPlan(inputs);
+      return removeMember && result.status === "success"
+        ? { ...result, candidates: result.candidates.filter((candidate) => candidate.startEpochMilliseconds !== browserQaEpoch) }
+        : result;
+    },
+  });
+  await page.select(browserQaEpoch);
+  await page.change(parisOpening, "");
+  assertDormantPreference(page);
+  removeMember = true;
+  await page.change(parisOpening, "15:00");
+  assert.equal(page.state().plan.status, "success");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  removeMember = false;
+  await page.change(parisOpening, "14:00");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  assert.equal(page.button("Copy selected meeting link"), undefined);
+});
+
+test("real React navigation during an invalid preference draft stays URL-authoritative through Back/Forward", async (t) => {
+  const path = plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs);
+  const page = await navigationHarness(t, path);
+  await page.select(browserQaEpoch);
+  const oldCopy = page.button("Copy selected meeting link").onClick;
+  await page.change(parisOpening, "");
+  assertDormantPreference(page);
+  await page.go(plannerUrl.buildCanonicalMeetingPlannerPath({ ...browserQaInputs, citySlugs: ["paris", "london", "toronto"] }));
+  assert.equal(page.state().selectedStartEpochMilliseconds, null, "reordered URL cannot inherit dormant identity");
+  await page.go(-1);
+  assert.equal(page.input(parisOpening).value, "14:00");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null, "Back restores URL, not prior local selection");
+  await page.go(1);
+  assert.equal(page.state().citySlugs[0], "paris");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  await page.go(plannerUrl.buildCanonicalMeetingPlannerPath(browserQaInputs, browserQaEpoch + 1800000));
+  assert.equal(page.state().selectedStartEpochMilliseconds, browserQaEpoch + 1800000, "new URL selection wins");
+  await page.invoke(oldCopy);
+  assert.equal(page.writes.length, 0);
+  await page.change(parisOpening, "");
+  await page.go(`${path}&start=broken`);
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  assert.match(page.text(), /linked meeting time could not be restored/);
+  await page.select(browserQaEpoch);
+  await page.change(parisOpening, "");
+  await page.go(invalidRecoveryPath);
+  assert.equal(page.state(), null, "invalid shared plan unmounts the dormant editor");
+  assert.match(page.text(), /This shared plan link is incomplete or invalid/);
+  assert.equal(page.input(parisOpening), undefined);
+  await page.click("Start a new plan");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
+  await page.go(path);
+  await page.change(parisOpening, "15:00");
+  assert.equal(page.state().selectedStartEpochMilliseconds, null);
 });

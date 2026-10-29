@@ -4,13 +4,13 @@ import { buildCanonicalMeetingPlannerPath } from "../utils/meetingPlannerUrl";
 
 // One lock serves both actions. Retained callbacks only read the committed scope.
 export default function usePlannerSharing({ citySlugs, referenceCitySlug, referenceDate,
-  preferredWindow, planRevision, plan, selectedCandidate, copyPending }) {
+  cityPreferences, planRevision, plan, selectedCandidate, copyPending }) {
   const scope = useMemo(() => ({
-    inputs: { citySlugs, referenceCitySlug, referenceDate, preferredWindow },
+    inputs: { citySlugs, referenceCitySlug, referenceDate, cityPreferences },
     planRevision,
     valid: plan?.status === "success",
     selectedStart: selectedCandidate?.startEpochMilliseconds ?? null,
-  }), [citySlugs, referenceCitySlug, referenceDate, preferredWindow, planRevision, plan, selectedCandidate]);
+  }), [citySlugs, referenceCitySlug, referenceDate, cityPreferences, planRevision, plan, selectedCandidate]);
   const committed = useRef(null);
   const localPending = useRef(false);
   const pending = copyPending ?? localPending;

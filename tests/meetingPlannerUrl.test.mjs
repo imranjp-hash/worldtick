@@ -9,12 +9,14 @@ import { generateMeetingPlan } from "../src/utils/meetingPlanner.js";
 import { buildCanonicalMeetingPlannerPath as build, parseMeetingPlannerSearch as parse,
   plannerUrlParameters } from "../src/utils/meetingPlannerUrl.js";
 
+const windows = (slugs, start = "09:00", end = "17:00") => Object.fromEntries(slugs.map((slug) => [slug, { start, end }]));
 const base = { citySlugs: ["toronto", "london"], referenceCitySlug: "toronto",
-  referenceDate: "2027-03-27", preferredWindow: { start: "09:00", end: "17:00" } };
-const canonical = "/meeting-planner?v=1&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hoursStart=09%3A00&hoursEnd=17%3A00";
+  referenceDate: "2027-03-27", cityPreferences: windows(["toronto", "london"]) };
+const legacy = "/meeting-planner?v=1&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hoursStart=09%3A00&hoursEnd=17%3A00";
+const canonical = "/meeting-planner?v=2&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hours=toronto%3A09%3A00-17%3A00%2Clondon%3A09%3A00-17%3A00";
 const query = (path) => new URL(path, "https://www.youhora.com").search;
-function changed(name, value) {
-  const params = new URLSearchParams(query(canonical));
+function changed(name, value, path = legacy) {
+  const params = new URLSearchParams(query(path));
   if (value === null) params.delete(name); else params.set(name, value);
   return `?${params}`;
 }
@@ -28,10 +30,10 @@ test("two-city canonical URL explicitly includes reference, default hours, order
 
 test("five-city URLs preserve exact display order, same-zone cities and non-default minute endpoints", () => {
   const inputs = { ...base, citySlugs: ["tokyo", "montreal", "toronto", "kathmandu", "london"],
-    referenceCitySlug: "montreal", preferredWindow: { start: "08:15", end: "18:45" } };
+    referenceCitySlug: "montreal", cityPreferences: windows(["tokyo", "montreal", "toronto", "kathmandu", "london"], "08:15", "18:45") };
   const path = build(inputs);
   assert.match(path, /cities=tokyo%2Cmontreal%2Ctoronto%2Ckathmandu%2Clondon&reference=montreal/);
-  assert.match(path, /hoursStart=08%3A15&hoursEnd=18%3A45$/);
+  assert.match(path, /hours=tokyo%3A08%3A15-18%3A45.*london%3A08%3A15-18%3A45$/);
   assert.deepEqual(parse(query(path)).inputs, inputs);
   assert.deepEqual(inputs.citySlugs, ["tokyo", "montreal", "toronto", "kathmandu", "london"]);
 });
@@ -42,19 +44,19 @@ test("no recognized planner parameters gives ordinary defaults, not an incomplet
   }
 });
 
-test("every required parameter rejects missing, empty, identical duplicate and encoded-name duplicate", () => {
-  for (const name of plannerUrlParameters.slice(0, -1)) {
+test("every historical v1 required parameter rejects missing, empty and duplicate values", () => {
+  for (const name of ["v", "cities", "reference", "date", "hoursStart", "hoursEnd"]) {
     for (const value of [null, ""]) assert.equal(parse(changed(name, value)).status, "invalid", name);
-    const params = new URLSearchParams(query(canonical));
-    assert.equal(parse(`${query(canonical)}&${name}=${encodeURIComponent(params.get(name))}`).status, "invalid", name);
+    const params = new URLSearchParams(query(legacy));
+    assert.equal(parse(`${query(legacy)}&${name}=${encodeURIComponent(params.get(name))}`).status, "invalid", name);
     const encodedName = `%${name.charCodeAt(0).toString(16)}${name.slice(1)}`;
-    assert.equal(parse(`${query(canonical)}&${encodedName}=${encodeURIComponent(params.get(name))}`).status, "invalid", name);
+    assert.equal(parse(`${query(legacy)}&${encodedName}=${encodeURIComponent(params.get(name))}`).status, "invalid", name);
     assert.equal(parse(`?${name}=${encodeURIComponent(params.get(name))}`).status, "invalid", name);
   }
 });
 
-test("versions require exactly v=1 without trimming or repair", () => {
-  for (const version of ["2", "01", "1.0", " 1", "1\n", "v1", "%31"]) {
+test("versions reject repair and v2 cannot reinterpret the legacy shared shape", () => {
+  for (const version of ["2", "3", "01", "1.0", " 1", "1\n", "v1", "%31"]) {
     assert.equal(parse(changed("v", version)).status, "invalid", version);
   }
 });
@@ -143,13 +145,13 @@ test("wrong date, wrong sampling grid and nearby epochs never choose another can
     assert.equal(state.status, "success");
     assert.equal(state.selectedStartEpochMilliseconds, null);
   }
-  const params = new URLSearchParams(query(canonical));
+  const params = new URLSearchParams(query(legacy));
   params.set("cities", "kathmandu,london"); params.set("reference", "kathmandu"); params.set("start", "1806152400000");
   assert.equal(parse(`?${params}`).selectionIssue, "INVALID_SELECTION");
 });
 
 test("Toronto first and second 1 AM are distinct exact candidates despite identical clock labels", () => {
-  const inputs = { ...base, referenceDate: "2027-11-07", preferredWindow: { start: "01:00", end: "07:00" } };
+  const inputs = { ...base, referenceDate: "2027-11-07", cityPreferences: windows(base.citySlugs, "01:00", "07:00") };
   const plan = generateMeetingPlan(inputs);
   const epochs = [1825563600000, 1825567200000];
   const candidates = epochs.map((epoch) => plan.candidates.find((candidate) => candidate.startEpochMilliseconds === epoch));
@@ -166,22 +168,22 @@ test("valid alternatives, past candidates and epochs shared by different configu
   assert.equal(parse(query(build(base, alternative.startEpochMilliseconds))).selectedStartEpochMilliseconds, alternative.startEpochMilliseconds);
   const past = { ...base, referenceDate: "2020-01-01" };
   assert.equal(parse(query(build(past, generateMeetingPlan(past).candidates[0].startEpochMilliseconds))).status, "success");
-  for (const inputs of [base, { ...base, citySlugs: ["toronto", "paris"] },
-    { ...base, preferredWindow: { start: "12:00", end: "13:00" } }]) {
+  for (const inputs of [base, { ...base, citySlugs: ["toronto", "paris"], cityPreferences: windows(["toronto", "paris"]) },
+    { ...base, cityPreferences: windows(base.citySlugs, "12:00", "13:00") }]) {
     assert.equal(parse(query(build(inputs, 1806152400000))).selectedStartEpochMilliseconds, 1806152400000);
   }
 });
 
 test("serializer refuses incomplete inputs, invalid windows and unvalidated selections", () => {
-  for (const inputs of [null, {}, { ...base, preferredWindow: undefined }, { ...base, referenceDate: "" },
-    { ...base, citySlugs: ["toronto"] }, { ...base, preferredWindow: { start: "09:00\n", end: "17:00" } }]) {
+  for (const inputs of [null, {}, { ...base, cityPreferences: undefined }, { ...base, referenceDate: "" },
+    { ...base, citySlugs: ["toronto"] }, { ...base, cityPreferences: windows(base.citySlugs, "09:00\n", "17:00") }]) {
     assert.equal(build(inputs), null);
   }
   for (const selection of ["1806152400000", 1806152400001, NaN, Infinity, -1]) assert.equal(build(base, selection), null);
 });
 
 test("fractional reference offsets and spring-forward membership survive URL round trips", () => {
-  const fractional = { ...base, citySlugs: ["kathmandu", "mumbai"], referenceCitySlug: "kathmandu" };
+  const fractional = { ...base, citySlugs: ["kathmandu", "mumbai"], referenceCitySlug: "kathmandu", cityPreferences: windows(["kathmandu", "mumbai"]) };
   const first = generateMeetingPlan(fractional).candidates[0];
   assert.equal(first.locations[0].start.offset, "+05:45");
   assert.equal(parse(query(build(fractional, first.startEpochMilliseconds))).selectedStartEpochMilliseconds, first.startEpochMilliseconds);
@@ -204,7 +206,7 @@ test("fixture catalogs exercise Lord Howe, date-line extremes and timezone-rule 
   vm.runInContext(executable(engineSource), context);
   vm.runInContext(executable(urlSource), context);
   for (const [referenceDate, count] of [["2027-04-04", 49], ["2027-10-03", 47]]) {
-    const inputs = { ...base, citySlugs: ["lord-howe", "sydney"], referenceCitySlug: "lord-howe", referenceDate };
+    const inputs = { ...base, citySlugs: ["lord-howe", "sydney"], referenceCitySlug: "lord-howe", referenceDate, cityPreferences: windows(["lord-howe", "sydney"]) };
     const plan = context.generateMeetingPlan(inputs);
     assert.equal(plan.candidates.length, count);
     const epoch = plan.candidates[3].startEpochMilliseconds;
@@ -214,7 +216,7 @@ test("fixture catalogs exercise Lord Howe, date-line extremes and timezone-rule 
     [["west", "east"], "2027-01-01", "2027-01-02T11:30Z", 2],
     [["east", "west"], "2027-01-03", "2027-01-02T10:30Z", -2],
   ]) {
-    const inputs = { ...base, citySlugs, referenceCitySlug: citySlugs[0], referenceDate };
+    const inputs = { ...base, citySlugs, referenceCitySlug: citySlugs[0], referenceDate, cityPreferences: windows(citySlugs) };
     const epoch = Date.parse(iso);
     const plan = context.generateMeetingPlan(inputs);
     assert.equal(plan.candidates.find((candidate) => candidate.startEpochMilliseconds === epoch).locations[1].dayDifference, difference);
@@ -246,9 +248,86 @@ test("URL hydration and serialization are host-timezone and clock independent", 
 
 test("five longest catalog slugs retain a bounded canonical URL at the upper date limit", () => {
   const longest = [...cities].sort((a, b) => b.slug.length - a.slug.length || (a.slug < b.slug ? -1 : 1)).slice(0, 5);
-  const inputs = { ...base, citySlugs: longest.map((city) => city.slug), referenceCitySlug: longest[0].slug, referenceDate: "9999-12-30" };
+  const inputs = { ...base, citySlugs: longest.map((city) => city.slug), referenceCitySlug: longest[0].slug, referenceDate: "9999-12-30", cityPreferences: windows(longest.map((city) => city.slug)) };
   const epoch = generateMeetingPlan(inputs).candidates.at(-1).startEpochMilliseconds;
-  assert.equal(`https://www.youhora.com${build(inputs)}`.length, 212);
-  assert.equal(`https://www.youhora.com${build(inputs, epoch)}`.length, 234);
+  assert.equal(`https://www.youhora.com${build(inputs)}`.length, 355);
+  assert.equal(`https://www.youhora.com${build(inputs, epoch)}`.length, 377);
   assert.equal(parse(query(build(inputs, epoch))).selectedStartEpochMilliseconds, epoch);
+});
+
+test("historical v1 shared semantics expand independently and all copies upgrade to v2", () => {
+  const parsed = parse(`${query(legacy)}&hours=ignored&hours=also-ignored&start=1806152400000`);
+  assert.deepEqual(parsed.inputs, base);
+  assert.notEqual(parsed.inputs.cityPreferences.toronto, parsed.inputs.cityPreferences.london);
+  assert.equal(build(parsed.inputs), canonical);
+  assert.equal(build(parsed.inputs, parsed.selectedStartEpochMilliseconds), `${canonical}&start=1806152400000`);
+  const custom = parse(changed("hoursStart", "08:15"));
+  assert.deepEqual(custom.inputs.cityPreferences, windows(base.citySlugs, "08:15", "17:00"));
+});
+
+test("v2 canonicalizes independent windows by city order rather than map insertion order", () => {
+  const inputs = { ...base, cityPreferences: { london: { start: "09:30", end: "17:30" }, toronto: { start: "08:00", end: "16:00" } } };
+  const expected = "/meeting-planner?v=2&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hours=toronto%3A08%3A00-16%3A00%2Clondon%3A09%3A30-17%3A30";
+  assert.equal(build(inputs), expected);
+  const parsed = parse(changed("hours", "london:09:30-17:30,toronto:08:00-16:00", canonical));
+  assert.deepEqual(parsed.inputs, inputs);
+  assert.equal(build(parsed.inputs), expected);
+  assert.deepEqual(parse(query(build(inputs, 1806152400000))).inputs, inputs);
+  const reordered = { ...inputs, citySlugs: ["london", "toronto"] };
+  assert.match(build(reordered), /cities=london%2Ctoronto.*hours=london%3A09%3A30-17%3A30%2Ctoronto%3A08%3A00-16%3A00$/);
+});
+
+test("v2 required fields and encoded-name duplicates fail as invalid plans", () => {
+  for (const name of plannerUrlParameters.slice(0, -1)) {
+    for (const value of [null, ""]) assert.equal(parse(changed(name, value, canonical)).status, "invalid");
+    const value = new URLSearchParams(query(canonical)).get(name);
+    for (const key of [name, `%${name.charCodeAt(0).toString(16)}${name.slice(1)}`]) {
+      assert.equal(parse(`${query(canonical)}&${key}=${encodeURIComponent(value)}`).status, "invalid");
+    }
+  }
+  for (const field of ["hoursStart", "hoursEnd", "%68oursStart"]) {
+    assert.equal(parse(`${query(canonical)}&${field}=09%3A00`).status, "invalid");
+  }
+  assert.equal(parse("?hours=toronto:09:00-17:00").status, "invalid");
+  assert.equal(parse(changed("v", "3", canonical)).status, "invalid");
+});
+
+test("v2 rejects incomplete, duplicate, unselected and malformed preference entries without repair", () => {
+  const valid = "toronto:09:00-17:00,london:09:00-17:00";
+  for (const hours of ["toronto:09:00-17:00", `${valid},paris:09:00-17:00`, `${valid},london:09:00-17:00`,
+    "toronto:09:00-17:00,toronto:08:00-16:00", "toronto:09:00-17:00,unknown:09:00-17:00",
+    "Toronto:09:00-17:00,london:09:00-17:00", ` ${valid}`, `${valid}\n`, `${valid},`,
+    "toronto=09:00-17:00,london:09:00-17:00", "__proto__:09:00-17:00,london:09:00-17:00"]) {
+    assert.equal(parse(changed("hours", hours, canonical)).status, "invalid", hours);
+  }
+  for (const [start, end] of [["9:00", "17:00"], ["24:00", "17:00"], ["09:60", "17:00"], ["09:00:00", "17:00"],
+    [" 09:00", "17:00"], ["09:00", "17:00\r"], ["09:00", "09:00"], ["22:00", "06:00"]]) {
+    assert.equal(parse(changed("hours", `toronto:${start}-${end},london:09:00-17:00`, canonical)).status, "invalid");
+  }
+  for (const cityList of ["toronto,toronto", "toronto,unknown", "Toronto,london", "toronto,london,paris"]) {
+    assert.equal(parse(changed("cities", cityList, canonical)).status, "invalid");
+  }
+});
+
+test("v2 decodes delimiters exactly once and strips unrelated extras", () => {
+  assert.equal(parse(query(canonical).replaceAll("%3A", ":").replaceAll("%2C", ",")).status, "success");
+  assert.equal(parse(query(canonical).toLowerCase()).status, "success");
+  for (const token of ["%253A", "%3", "%ZZ", "%FF"]) {
+    assert.equal(parse(query(canonical).replace("toronto%3A", `toronto${token}`)).status, "invalid");
+  }
+  const reordered = new URLSearchParams([...new URLSearchParams(`${query(canonical)}&tag=a&tag=b`)].reverse());
+  assert.equal(build(parse(`?${reordered}`).inputs), canonical);
+});
+
+test("v2 malformed selection preserves the independent plan and alternatives remain selectable", () => {
+  for (const start of ["", "-1", "+1", "1.5", "1e12", "01806152400000", "9007199254740992", "1806152400001", "1806152400000\n"]) {
+    const parsed = parse(changed("start", start, canonical));
+    assert.equal(parsed.status, "success");
+    assert.deepEqual(parsed.inputs, base);
+    assert.equal(parsed.selectedStartEpochMilliseconds, null);
+    assert.equal(parsed.selectionIssue, "INVALID_SELECTION");
+  }
+  assert.equal(parse(`${query(canonical)}&start=1806152400000&%73tart=1806152400000`).selectionIssue, "INVALID_SELECTION");
+  const alternative = generateMeetingPlan(base).candidates[0];
+  assert.equal(parse(query(build(base, alternative.startEpochMilliseconds))).selectedStartEpochMilliseconds, alternative.startEpochMilliseconds);
 });

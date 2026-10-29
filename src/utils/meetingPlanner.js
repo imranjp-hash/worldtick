@@ -9,6 +9,24 @@ const cityBySlug = new Map(cities.map((city) => [city.slug, city]));
 const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const invalid = (field, code, message) => ({ status: "invalid", error: { field, code, message } });
 
+function parseWindow(window, fieldPrefix) {
+  for (const field of ["start", "end"]) {
+    if (!window || typeof window !== "object" || Array.isArray(window) || !Object.hasOwn(window, field)
+      || typeof window[field] !== "string" || window[field].length !== 5 || !timePattern.test(window[field])) {
+      return invalid(`${fieldPrefix}.${field}`, "INVALID_TIME", "Enter preferred hours in HH:mm format.");
+    }
+  }
+  const opening = Temporal.PlainTime.from(window.start);
+  const closing = Temporal.PlainTime.from(window.end);
+  const order = Temporal.PlainTime.compare(opening, closing);
+  const cityMessage = "Choose a closing time later than the opening time. Overnight hours are not supported.";
+  if (order === 0) return invalid(`${fieldPrefix}.end`, "EQUAL_HOURS",
+    fieldPrefix === "preferredWindow" ? "Preferred opening and closing times must differ." : cityMessage);
+  if (order > 0) return invalid(`${fieldPrefix}.end`, "OVERNIGHT_UNSUPPORTED",
+    fieldPrefix === "preferredWindow" ? "Overnight hours are not supported yet." : cityMessage);
+  return { opening, closing };
+}
+
 function project(value) {
   return {
     date: value.toPlainDate().toString(),
@@ -80,7 +98,7 @@ export function generateMeetingPlan(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return invalid("input", "INVALID_INPUT", "Expected meeting planner inputs.");
   }
-  const { citySlugs, referenceCitySlug, referenceDate, preferredWindow = { start: "09:00", end: "17:00" } } = input;
+  const { citySlugs, referenceCitySlug, referenceDate } = input;
   if (!Array.isArray(citySlugs) || citySlugs.length < 2 || citySlugs.length > 5) {
     return invalid("citySlugs", "INVALID_CITY_COUNT", "Choose between 2 and 5 cities.");
   }
@@ -108,16 +126,27 @@ export function generateMeetingPlan(input) {
   if (referenceDate < MIN_PLANNER_DATE || referenceDate > MAX_PLANNER_DATE) {
     return invalid("referenceDate", "UNSUPPORTED_DATE", `Choose a planning date from ${MIN_PLANNER_DATE} through ${MAX_PLANNER_DATE}.`);
   }
-  for (const field of ["start", "end"]) {
-    if (typeof preferredWindow?.[field] !== "string" || !timePattern.test(preferredWindow[field])) {
-      return invalid(`preferredWindow.${field}`, "INVALID_TIME", "Enter preferred hours in HH:mm format.");
+  const windows = new Map();
+  if ("cityPreferences" in input) {
+    if ("preferredWindow" in input) return invalid("cityPreferences", "AMBIGUOUS_PREFERENCES", "Supply either city preferences or a shared window, not both.");
+    const preferences = input.cityPreferences;
+    if (!Object.hasOwn(input, "cityPreferences") || !preferences || typeof preferences !== "object" || Array.isArray(preferences)
+      || Reflect.ownKeys(preferences).length !== citySlugs.length
+      || Reflect.ownKeys(preferences).some((slug) => !seen.has(slug))
+      || citySlugs.some((slug) => !Object.hasOwn(preferences, slug))) {
+      return invalid("cityPreferences", "INVALID_PREFERENCES", "Provide exactly one preferred window for each selected city.");
     }
+    for (const slug of citySlugs) {
+      const parsed = parseWindow(preferences[slug], `cityPreferences.${slug}`);
+      if (parsed.status === "invalid") return parsed;
+      windows.set(slug, parsed);
+    }
+  } else {
+    // Explicit Phase 3A compatibility path. The editor and v2 URLs use cityPreferences.
+    const parsed = parseWindow(input.preferredWindow === undefined ? { start: "09:00", end: "17:00" } : input.preferredWindow, "preferredWindow");
+    if (parsed.status === "invalid") return parsed;
+    for (const slug of citySlugs) windows.set(slug, parsed);
   }
-  const opening = Temporal.PlainTime.from(preferredWindow.start);
-  const closing = Temporal.PlainTime.from(preferredWindow.end);
-  const order = Temporal.PlainTime.compare(opening, closing);
-  if (order === 0) return invalid("preferredWindow.end", "EQUAL_HOURS", "Preferred opening and closing times must differ.");
-  if (order > 0) return invalid("preferredWindow.end", "OVERNIGHT_UNSUPPORTED", "Overnight hours are not supported yet.");
 
   try {
     const referenceTimeZone = cityBySlug.get(referenceCitySlug).timezone;
@@ -135,6 +164,7 @@ export function generateMeetingPlan(input) {
       const endEpochMilliseconds = epoch + MEETING_DURATION_MILLISECONDS;
       const locations = citySlugs.map((citySlug) => {
         const zone = cityBySlug.get(citySlug).timezone;
+        const { opening, closing } = windows.get(citySlug);
         const localStart = instant.toZonedDateTimeISO(zone);
         const localEnd = Temporal.Instant.fromEpochMilliseconds(endEpochMilliseconds).toZonedDateTimeISO(zone);
         return {

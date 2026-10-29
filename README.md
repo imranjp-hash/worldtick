@@ -4,9 +4,10 @@
 
 `/meeting-planner` plans fixed 30-elapsed-minute meetings across 2–5 distinct
 catalog cities. One explicit reference city owns the selected calendar date.
-The global preferred local window defaults to 09:00–17:00 and applies every day;
-it does not represent actual calendar availability. Equal endpoints are invalid
-and overnight windows are deferred.
+The legacy engine form accepts a shared preferred local window, defaulting to
+09:00–17:00 every day. Phase 3D's editor uses independent city preferences (see
+below). Neither form represents calendar availability. Equal endpoints are
+invalid and overnight windows are deferred.
 
 `generateMeetingPlan({ citySlugs, referenceCitySlug, referenceDate,
 preferredWindow: { start, end } })` in `src/utils/meetingPlanner.js` is pure and
@@ -33,9 +34,10 @@ stay within four-digit years; it is a planner policy, not a Temporal limitation.
 Historical date re-entry and second-offset archaeology
 are outside Phase 3A. Invalid or unsupported reference days return an explicit
 error. Calculations use the runtime's IANA rules, with the same rule-version
-limitation as the conversion engine. Planner selection clears on all input changes.
-There are no planner URLs, individual/overnight windows,
-external integrations or planner analytics in this phase.
+limitation as the conversion engine. Phase 3A originally cleared selection on all
+input changes; Phase 3D's preference-only preservation policy is documented below.
+Phase 3A did not introduce URLs, individual/overnight windows, external
+integrations or planner analytics.
 
 ## Selected meeting calendar export (Phase 3B)
 
@@ -61,8 +63,9 @@ descriptions always retain every city.
 Filenames retain sanitized display-order slugs (48 characters per segment), cap
 the joined city stem at 120 characters, and preserve the UTC start timestamp and
 `.ics` extension, for a maximum of 157 ASCII characters. Filename truncation never
-affects UID generation. Editing planner inputs clears selection; retained handlers
-read a committed snapshot and are disabled on unmount. No planner sharing URL,
+affects UID generation. Candidate-defining edits clear selection; Phase 3D
+preference edits preserve a still-valid exact selected epoch. Retained handlers
+read a committed snapshot and are disabled on unmount. Phase 3B added no sharing URL,
 calendar provider, invitation, analytics, recurrence or custom duration is added.
 
 ## Shareable meeting plans (Phase 3C)
@@ -75,7 +78,7 @@ or synchronize the address bar. Local edits are an unsaved draft: refresh and
 Back/Forward initialize the visited URL afresh, including selection.
 
 The v1 canonical order is `v`, `cities`, `reference`, `date`, `hoursStart`,
-`hoursEnd`, optional `start`. Every copied link includes `v=1`, 2–5 distinct
+`hoursEnd`, optional `start`. Phase 3C copied links included `v=1`, 2–5 distinct
 catalog slugs in display order, an explicit selected reference city, its ISO
 calendar date and both preferred local endpoints, even when equal to defaults.
 Distinct cities sharing a timezone remain distinct. `URLSearchParams` encodes
@@ -114,12 +117,79 @@ two seconds and cannot reappear after edits, selection changes, history returns
 or unmount. Past meetings remain shareable; future-only `.ics` eligibility and
 Phase 3B export semantics remain unchanged.
 
-No planner analytics, provider integrations, individual/overnight windows,
-custom duration, shortened links or server-side shared state are added. Query
+Phase 3C added no planner analytics, provider integrations, individual/overnight
+windows, custom duration, shortened links or server-side shared state. Query
 states retain the static planner SEO canonical and are absent from the sitemap.
 Manual page-view payloads remain query-free. Release QA must separately inspect
 consented GA4 network payloads and external enhanced-measurement settings; these
 are outside the repository and can capture history URLs independently.
+
+## Individual preferred local hours (Phase 3D)
+
+The editor stores `citySlugs` as the sole membership/display-order authority and
+`cityPreferences` as exactly one own `{ start, end }` window per selected slug.
+There is no second shared-window editor state. Fresh Toronto/London entries and
+each added city independently start at 09:00–17:00. Existing custom windows survive
+city additions and reference changes. Removal deletes the preference; re-addition
+resets it to defaults. The pending add-city dropdown stores only a slug. Cities
+sharing a timezone remain independent.
+
+The canonical engine call is `generateMeetingPlan({ citySlugs, referenceCitySlug,
+referenceDate, cityPreferences })`. Legacy omitted/shared `preferredWindow` calls
+remain supported through an explicit engine compatibility path; supplying both
+forms is invalid. Canonical maps reject missing, extra or inherited entries and
+malformed windows without repair or default substitution. Endpoints must be exact
+`HH:mm` with `00:00 <= start < end <= 23:59`: no seconds, equality, `24:00`, trimming
+or overnight wrapping. Minute endpoints need not align with the candidate grid.
+
+Preferences only classify the existing exact intervals. Day boundaries, candidate
+count, start/end epochs and 30-elapsed-minute sampling remain unchanged. Each
+city's endpoints are parsed once per engine call, then the existing full-interval,
+transition-aware predicate checks its window. Opening is inclusive; a meeting
+ending at closing fits, while one starting at closing does not. This checks occupied
+instants, including transition interiors, rather than just displayed endpoints.
+Preferred candidates remain chronological; alternatives remain count descending,
+then start epoch ascending, with no reference weighting or other scoring.
+
+Adding/removing a city or changing reference/date clears selection. A preference-only
+edit increments `planRevision` to invalidate old radio callbacks but preserves the
+selected exact epoch while it remains a regenerated candidate. The selected summary
+updates its count and outside-hours list in place, even if its radio disappears from
+the preferred list. Temporarily invalid local preferences suspend results, the selected
+summary, sharing and export while remembering the exact meeting. Repairing preferences
+restores it only if it remains a current candidate. Candidate-defining changes and lost
+candidate membership clear selection permanently; invalid shared plans remain rejected.
+Same-value edits are no-ops. Functional updates
+merge rapid edits; membership-array identity makes removed/re-added city handlers
+inert. No calendar export fields, UID or eligibility semantics change.
+
+New copies always emit v2, including unchanged loaded v1 plans. V1 keeps its shared
+meaning and historical ignored-extra behavior forever: hydration validates that
+shared window, then expands it into independent per-city entries. Neither loading
+nor local editing rewrites browser location, and no v1/v2 editor mode is stored.
+
+V2's canonical order is `v`, `cities`, `reference`, `date`, `hours`, optional `start`.
+`hours` contains `slug:HH:mm-HH:mm` entries, comma-separated in city display order,
+including defaults. The parser accepts a different entry order and resolves by
+slug. Exactly one entry per selected city is required; duplicates, missing/extra
+entries, malformed grammar, and mixed v2 `hoursStart`/`hoursEnd` fields invalidate the
+plan. Required/encoded-name duplicates also fail. `URLSearchParams` decodes once;
+double encoding is not repaired. Unrelated extras are ignored on load and stripped
+from copies. Malformed/stale/duplicate `start` only clears selection with a notice;
+outside-hours and past members remain shareable. No nearest candidate is substituted.
+
+```text
+https://www.youhora.com/meeting-planner?v=2&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hours=toronto%3A08%3A00-16%3A00%2Clondon%3A09%3A30-17%3A30
+https://www.youhora.com/meeting-planner?v=2&cities=toronto%2Clondon&reference=toronto&date=2027-03-27&hours=toronto%3A08%3A00-16%3A00%2Clondon%3A09%3A30-17%3A30&start=1806152400000
+```
+
+The 168-city catalog's five longest slugs produce a maximum canonical v2 URL of
+355 characters, or 377 with a valid selected start at the upper date limit. No
+short-link service or saved server state is needed. Back/Forward and refresh mount
+the visited plan afresh and discard local drafts. Sharing retains committed
+snapshots, the cross-editor clipboard lock, scoped feedback and timer cleanup.
+Clock ticks still bypass planner generation and city formatting. Analytics, static
+canonical metadata, sitemap and structured data remain unchanged.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
