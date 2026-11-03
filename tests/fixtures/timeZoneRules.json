@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-11-02",
+  "provenance": "Manually transcribed from government notices and IANA 2026e source rules, never generated from Intl, Temporal, or application output. Offsets are east of UTC. UTC boundaries use the offset in force immediately before the transition. Planner counts derive from elapsed day length divided by 30 minutes.",
+  "groups": [
+    {
+      "timeZone": "America/Vancouver",
+      "reviewedIanaRelease": "2026e",
+      "sources": [
+        { "title": "British Columbia: permanent daylight saving time", "url": "https://www2.gov.bc.ca/gov/content/governments/celebrating-british-columbia/daylight-saving-time" },
+        { "title": "IANA 2026e: America/Vancouver and Canada rules", "url": "https://data.iana.org/time-zones/tzdb-2026e/northamerica" }
+      ],
+      "notes": "Final forward change: March 8 at 02:00 local standard time (10:00Z), -08 to -07. No fallback at November 1 02:00 daylight time (09:00Z). Scope is Vancouver, not every BC community. 2025 retained seasonal rules.",
+      "checks": [
+        { "id": "vancouver-historical-fall-before", "kind": "offset", "instant": "2025-11-02T08:59:59.999Z", "expectedOffset": "-07:00" },
+        { "id": "vancouver-historical-fall-at", "kind": "offset", "instant": "2025-11-02T09:00:00.000Z", "expectedOffset": "-08:00" },
+        { "id": "vancouver-winter-before-change", "kind": "offset", "instant": "2026-01-15T12:00:00.000Z", "expectedOffset": "-08:00" },
+        { "id": "vancouver-final-spring-before", "kind": "offset", "instant": "2026-03-08T09:59:59.999Z", "expectedOffset": "-08:00" },
+        { "id": "vancouver-final-spring-at", "kind": "offset", "instant": "2026-03-08T10:00:00.000Z", "expectedOffset": "-07:00" },
+        { "id": "vancouver-summer", "kind": "offset", "instant": "2026-07-15T12:00:00.000Z", "expectedOffset": "-07:00" },
+        { "id": "vancouver-canceled-fall-before", "kind": "offset", "instant": "2026-11-01T08:59:59.999Z", "expectedOffset": "-07:00" },
+        { "id": "vancouver-canceled-fall-at", "kind": "offset", "instant": "2026-11-01T09:00:00.000Z", "expectedOffset": "-07:00" },
+        { "id": "vancouver-after-canceled-fall", "kind": "offset", "instant": "2026-11-02T12:00:00.000Z", "expectedOffset": "-07:00" },
+        { "id": "vancouver-december", "kind": "offset", "instant": "2026-12-15T12:00:00.000Z", "expectedOffset": "-07:00" }
+      ]
+    },
+    {
+      "timeZone": "America/Edmonton",
+      "reviewedIanaRelease": "2026e",
+      "sources": [
+        { "title": "Alberta: new time system, UTC-6 year-round", "url": "https://www.alberta.ca/albertas-new-time-system-abt" },
+        { "title": "IANA 2026e: America/Edmonton, June 18 enactment and Canada rules", "url": "https://data.iana.org/time-zones/tzdb-2026e/northamerica" }
+      ],
+      "notes": "March 8 forward change at 09:00Z. June 18 enactment does not change the -06 offset; local midnight is 06:00Z. No fallback at November 1 02:00 daylight time (08:00Z). 2025 retained seasonal rules.",
+      "checks": [
+        { "id": "edmonton-historical-fall-before", "kind": "offset", "instant": "2025-11-02T07:59:59.999Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-historical-fall-at", "kind": "offset", "instant": "2025-11-02T08:00:00.000Z", "expectedOffset": "-07:00" },
+        { "id": "edmonton-winter-before-change", "kind": "offset", "instant": "2026-01-15T12:00:00.000Z", "expectedOffset": "-07:00" },
+        { "id": "edmonton-final-spring-before", "kind": "offset", "instant": "2026-03-08T08:59:59.999Z", "expectedOffset": "-07:00" },
+        { "id": "edmonton-final-spring-at", "kind": "offset", "instant": "2026-03-08T09:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-enactment-before", "kind": "offset", "instant": "2026-06-18T05:59:59.999Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-enactment-at", "kind": "offset", "instant": "2026-06-18T06:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-summer", "kind": "offset", "instant": "2026-07-15T12:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-canceled-fall-before", "kind": "offset", "instant": "2026-11-01T07:59:59.999Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-canceled-fall-at", "kind": "offset", "instant": "2026-11-01T08:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-after-canceled-fall", "kind": "offset", "instant": "2026-11-02T12:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "edmonton-december", "kind": "offset", "instant": "2026-12-15T12:00:00.000Z", "expectedOffset": "-06:00" }
+      ]
+    },
+    {
+      "timeZone": "America/Winnipeg",
+      "reviewedIanaRelease": "2026e",
+      "sources": [
+        { "title": "Manitoba: no more falling back, UTC-5 year-round", "url": "https://www.gov.mb.ca/timechange/" },
+        { "title": "IANA 2026e: America/Winnipeg, October 31 enactment and Canada rules", "url": "https://data.iana.org/time-zones/tzdb-2026e/northamerica" }
+      ],
+      "notes": "March 8 forward change at 08:00Z. October 31 enactment leaves -05 unchanged; local midnight is 05:00Z. No fallback at November 1 02:00 daylight time (07:00Z). November 1 01:30 exists exactly once: the repeated hour is absent, not a nonexistent wall time. November 2 noon is 17:00Z. November 1 spans 05:00Z to next-day 05:00Z: 24 elapsed hours, 48 half-hour starts (not 50).",
+      "checks": [
+        { "id": "winnipeg-historical-fall-before", "kind": "offset", "instant": "2025-11-02T06:59:59.999Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-historical-fall-at", "kind": "offset", "instant": "2025-11-02T07:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "winnipeg-winter-before-change", "kind": "offset", "instant": "2026-01-15T12:00:00.000Z", "expectedOffset": "-06:00" },
+        { "id": "winnipeg-final-spring-before", "kind": "offset", "instant": "2026-03-08T07:59:59.999Z", "expectedOffset": "-06:00" },
+        { "id": "winnipeg-final-spring-at", "kind": "offset", "instant": "2026-03-08T08:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-summer", "kind": "offset", "instant": "2026-07-15T12:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-enactment-before", "kind": "offset", "instant": "2026-10-31T04:59:59.999Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-enactment-at", "kind": "offset", "instant": "2026-10-31T05:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-canceled-fall-before", "kind": "offset", "instant": "2026-11-01T06:59:59.999Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-canceled-fall-at", "kind": "offset", "instant": "2026-11-01T07:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-after-canceled-fall", "kind": "offset", "instant": "2026-11-02T12:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-december", "kind": "offset", "instant": "2026-12-15T12:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "winnipeg-historical-repeated-hour", "kind": "local", "local": "2025-11-02T01:30", "expectedStatus": "ambiguous", "expectedOccurrences": [{ "instant": "2025-11-02T06:30:00.000Z", "offset": "-05:00" }, { "instant": "2025-11-02T07:30:00.000Z", "offset": "-06:00" }] },
+        { "id": "winnipeg-spring-gap-control", "kind": "local", "local": "2026-03-08T02:30", "expectedStatus": "nonexistent", "expectedOccurrences": [] },
+        { "id": "winnipeg-no-repeated-hour", "kind": "local", "local": "2026-11-01T01:30", "expectedStatus": "success", "expectedOccurrences": [{ "instant": "2026-11-01T06:30:00.000Z", "offset": "-05:00" }] },
+        { "id": "winnipeg-november-2-noon", "kind": "local", "local": "2026-11-02T12:00", "expectedStatus": "success", "expectedOccurrences": [{ "instant": "2026-11-02T17:00:00.000Z", "offset": "-05:00" }] },
+        { "id": "winnipeg-planner-november-1", "kind": "plannerDay", "date": "2026-11-01", "nextDate": "2026-11-02", "referenceCitySlug": "winnipeg", "expectedStart": "2026-11-01T05:00:00.000Z", "expectedEnd": "2026-11-02T05:00:00.000Z", "expectedCandidateCount": 48 }
+      ]
+    },
+    {
+      "timeZone": "Africa/Casablanca",
+      "reviewedIanaRelease": "2026e",
+      "sources": [
+        { "title": "Morocco ministry legal database: Decree 2-26-530 of June 25, published June 29 in Bulletin Officiel 7521", "url": "https://bdj.mmsp.gov.ma/Fr/Document/10664-D%C3%A9cret-n-2-26-530du-9-moharrem-1448-25-juin-2026.aspx?KeyPath=594/596/608/714/10664" },
+        { "title": "Morocco: official bulletin 7521 (Arabic decree text)", "url": "https://www.sgg.gov.ma/BO/AR/3111/2026/BO_7521_Ar.pdf" },
+        { "title": "IANA 2026e: Africa/Casablanca and Morocco rules", "url": "https://data.iana.org/time-zones/tzdb-2026e/africa" }
+      ],
+      "notes": "Historical Ramadan suspension retained: February 15 03:00 +01 becomes 02:00 +00 (02:00Z); March 22 02:00 +00 becomes 03:00 +01 (02:00Z). Permanent return to +00 on September 20 02:00 +01 becomes 01:00 +00 (01:00Z). Do not confuse that boundary with 02:00 UTC or the Ramadan transition hour.",
+      "checks": [
+        { "id": "casablanca-historical-ramadan", "kind": "offset", "instant": "2025-03-15T12:00:00.000Z", "expectedOffset": "+00:00" },
+        { "id": "casablanca-historical-after-ramadan", "kind": "offset", "instant": "2025-04-15T12:00:00.000Z", "expectedOffset": "+01:00" },
+        { "id": "casablanca-winter-before-change", "kind": "offset", "instant": "2026-01-15T12:00:00.000Z", "expectedOffset": "+01:00" },
+        { "id": "casablanca-ramadan-before", "kind": "offset", "instant": "2026-02-15T01:59:59.999Z", "expectedOffset": "+01:00" },
+        { "id": "casablanca-ramadan-at", "kind": "offset", "instant": "2026-02-15T02:00:00.000Z", "expectedOffset": "+00:00" },
+        { "id": "casablanca-ramadan-end-before", "kind": "offset", "instant": "2026-03-22T01:59:59.999Z", "expectedOffset": "+00:00" },
+        { "id": "casablanca-ramadan-end-at", "kind": "offset", "instant": "2026-03-22T02:00:00.000Z", "expectedOffset": "+01:00" },
+        { "id": "casablanca-summer-before-change", "kind": "offset", "instant": "2026-07-15T12:00:00.000Z", "expectedOffset": "+01:00" },
+        { "id": "casablanca-permanent-return-before", "kind": "offset", "instant": "2026-09-20T00:59:59.999Z", "expectedOffset": "+01:00" },
+        { "id": "casablanca-permanent-return-at", "kind": "offset", "instant": "2026-09-20T01:00:00.000Z", "expectedOffset": "+00:00" },
+        { "id": "casablanca-after-permanent-return", "kind": "offset", "instant": "2026-09-21T12:00:00.000Z", "expectedOffset": "+00:00" },
+        { "id": "casablanca-november", "kind": "offset", "instant": "2026-11-02T12:00:00.000Z", "expectedOffset": "+00:00" },
+        { "id": "casablanca-december", "kind": "offset", "instant": "2026-12-15T12:00:00.000Z", "expectedOffset": "+00:00" }
+      ]
+    },
+    {
+      "timeZone": "America/Toronto",
+      "reviewedIanaRelease": "2026e",
+      "sources": [
+        { "title": "Ontario Regulation 111/06: seasonal boundaries at 02:00 local time", "url": "https://www.ontario.ca/laws/regulation/r06111" },
+        { "title": "IANA 2026e: America/Toronto and Canada rules", "url": "https://data.iana.org/time-zones/tzdb-2026e/northamerica" }
+      ],
+      "notes": "Unaffected seasonal control: -05 winter, -04 summer. Forward change March 8 07:00Z; fallback November 1 06:00Z. Toronto must continue to have a repeated hour on November 1.",
+      "checks": [
+        { "id": "toronto-historical-fall-before", "kind": "offset", "instant": "2025-11-02T05:59:59.999Z", "expectedOffset": "-04:00" },
+        { "id": "toronto-historical-fall-at", "kind": "offset", "instant": "2025-11-02T06:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "toronto-winter", "kind": "offset", "instant": "2026-01-15T12:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "toronto-spring-before", "kind": "offset", "instant": "2026-03-08T06:59:59.999Z", "expectedOffset": "-05:00" },
+        { "id": "toronto-spring-at", "kind": "offset", "instant": "2026-03-08T07:00:00.000Z", "expectedOffset": "-04:00" },
+        { "id": "toronto-summer", "kind": "offset", "instant": "2026-07-15T12:00:00.000Z", "expectedOffset": "-04:00" },
+        { "id": "toronto-fall-before", "kind": "offset", "instant": "2026-11-01T05:59:59.999Z", "expectedOffset": "-04:00" },
+        { "id": "toronto-fall-at", "kind": "offset", "instant": "2026-11-01T06:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "toronto-after-fall", "kind": "offset", "instant": "2026-11-02T12:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "toronto-december", "kind": "offset", "instant": "2026-12-15T12:00:00.000Z", "expectedOffset": "-05:00" },
+        { "id": "toronto-still-repeats-hour", "kind": "local", "local": "2026-11-01T01:30", "expectedStatus": "ambiguous", "expectedOccurrences": [{ "instant": "2026-11-01T05:30:00.000Z", "offset": "-04:00" }, { "instant": "2026-11-01T06:30:00.000Z", "offset": "-05:00" }] }
+      ]
+    }
+  ]
+}

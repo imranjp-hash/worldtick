@@ -245,3 +245,34 @@ Localized display formatting remains separate in `formatTimeInZone` and `formatD
 ### Time-zone rule limitation
 
 The calculation is deterministic for the same inputs and the same time-zone rules. The Temporal polyfill obtains named-zone behavior from the browser or Node runtime's available IANA time-zone data. That data can differ between runtime versions and can become outdated when governments change time-zone law. Phase 1 does not bundle or pin a versioned time-zone database; the conversion API provides a boundary where the rule source can be upgraded later without changing callers.
+
+### Independent time-zone diagnostic (Phase G1D)
+
+Run `npm.cmd run check:timezone-rules` from the repository root. This standalone,
+offline check is separate from `npm test` and CI. It prints expected and observed
+values for native Intl and the installed Temporal polyfill separately, plus
+application conversion/planner probes, failure counts, and available Node, ICU,
+CLDR and tzdata versions. Any disagreement, unsupported zone, malformed/missing
+fixture value, or probe error exits nonzero. Node 24.15.0 with tzdata 2026a is
+expected to fail current-rule checks; a diagnostic failure must not be fixed by
+changing expectations to match the runtime. Agreement between Intl and Temporal
+does not establish correctness because both can use the same stale runtime data.
+
+`tests/fixtures/timeZoneRules.json` contains manually reviewed expectations as of
+2026-11-02. Each zone group records its government references and reviewed IANA
+release **2026e**: [IANA North America rules](https://data.iana.org/time-zones/tzdb-2026e/northamerica)
+and [Africa rules](https://data.iana.org/time-zones/tzdb-2026e/africa), checked against
+[British Columbia](https://www2.gov.bc.ca/gov/content/governments/celebrating-british-columbia/daylight-saving-time),
+[Alberta](https://www.alberta.ca/albertas-new-time-system-abt),
+[Manitoba](https://www.gov.mb.ca/timechange/), Morocco's Decree 2-26-530 in
+[official bulletin 7521](https://www.sgg.gov.ma/BO/AR/3111/2026/BO_7521_Ar.pdf), and
+[Ontario Regulation 111/06](https://www.ontario.ca/laws/regulation/r06111).
+Expected offsets and UTC instants are fixed source-derived literals, never
+generated from the implementations under test. Coverage includes historical and
+seasonal controls, exact 2026 boundaries, canceled Canadian fallbacks, Casablanca's
+September return to UTC, Winnipeg November 2 noon (17:00Z), its unique November 1
+01:30 (no repeated hour), and 48 actual half-hour planner candidates that day.
+Native wall-time inversion exhaustively probes minute offsets within +/-14 hours;
+these modern fixtures do not cover historical second offsets, skipped midnights,
+other zones, browser runtimes, or future rule changes. Review authoritative sources
+before updating fixtures. This command diagnoses rule data; it does not update it.

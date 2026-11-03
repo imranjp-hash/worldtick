@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test": "node --test",
+    "check:timezone-rules": "node scripts/checkTimeZoneRules.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
