@@ -258,6 +258,12 @@ expected to fail current-rule checks; a diagnostic failure must not be fixed by
 changing expectations to match the runtime. Agreement between Intl and Temporal
 does not establish correctness because both can use the same stale runtime data.
 
+Node 24.22.3 with tzdata 2026e is the locally verified runtime. The `24.x`
+engine declaration selects the Node 24 major line, not an exact patch version.
+Run `npm.cmd run check:timezone-rules` to validate independent time-zone
+expectations. Future Node and time-zone-data updates require regression
+verification before adoption.
+
 `tests/fixtures/timeZoneRules.json` contains manually reviewed expectations as of
 2026-11-02. Each zone group records its government references and reviewed IANA
 release **2026e**: [IANA North America rules](https://data.iana.org/time-zones/tzdb-2026e/northamerica)

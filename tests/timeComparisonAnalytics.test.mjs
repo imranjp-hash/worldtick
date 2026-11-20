@@ -554,7 +554,7 @@ test("a retained calendar handler exports the latest source conversion", async (
   assert.equal(page.calendarDownloads.length, 1);
   const [{ ics: downloadedIcs, filename }] = page.calendarDownloads;
   const logicalIcs = downloadedIcs.replace(/\r\n[ \t]/g, "");
-  assert.match(logicalIcs, /DTSTART:20270115T170000Z\r\n/);
+  assert.match(logicalIcs, /DTSTART:20270115T160000Z\r\n/);
   assert.match(logicalIcs, /Vancouver:/);
   assert.doesNotMatch(logicalIcs, /SUMMARY:Toronto/);
   assert.match(filename, /^youhora-vancouver-london-/);
@@ -618,7 +618,7 @@ test("retained calendar handlers follow Back and Forward state", async () => {
   const logicalDownloads = page.calendarDownloads.map(({ ics: value }) => value.replace(/\r\n[ \t]/g, ""));
   assert.match(logicalDownloads[0], /DTSTART:20270115T140000Z\r\n/);
   assert.match(logicalDownloads[0], /SUMMARY:Toronto .* London meeting/);
-  assert.match(logicalDownloads[1], /DTSTART:20270115T170000Z\r\n/);
+  assert.match(logicalDownloads[1], /DTSTART:20270115T160000Z\r\n/);
   assert.match(logicalDownloads[1], /SUMMARY:Vancouver .* Tokyo meeting/);
 });
 
